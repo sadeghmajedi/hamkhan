@@ -1,0 +1,15 @@
+{
+  "name": "هم‌خوان — دستیار روخوانی و دیکته",
+  "short_name": "هم‌خوان",
+  "description": "برنامه تمرین روخوانی و دیکته فارسی برای کودکان",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#FBF6EC",
+  "theme_color": "#146B62",
+  "lang": "fa",
+  "dir": "rtl",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

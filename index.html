@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>همخوان — دستیار روخوانی و دیکته</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#146B62">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #FBF6EC;
+    --surface: #FFFFFF;
+    --surface-2: #F3ECDC;
+    --primary: #146B62;
+    --primary-dark: #0C4B45;
+    --primary-light: #E4F1EE;
+    --accent: #D79A22;
+    --accent-light: #FBEDD1;
+    --correct: #2F9E58;
+    --correct-bg: #E7F5EB;
+    --incorrect: #C0392B;
+    --incorrect-bg: #FBEAE8;
+    --text: #2B2320;
+    --text-muted: #756A5F;
+    --border: #E4D9C4;
+    --radius: 16px;
+    --shadow: 0 2px 10px rgba(43,35,32,0.06), 0 1px 2px rgba(43,35,32,0.08);
+    --shadow-lg: 0 12px 30px rgba(43,35,32,0.12);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--text); font-family:'Vazirmatn',sans-serif; min-height:100%;}
+  body{padding-bottom:env(safe-area-inset-bottom);}
+  h1,h2,h3{font-family:'Noto Naskh Arabic','Vazirmatn',serif; font-weight:700; margin:0; color:var(--primary-dark);}
+  button{font-family:inherit; cursor:pointer;}
+  .app{max-width:640px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column;}
+
+  /* Top bar */
+  .topbar{display:flex; align-items:center; justify-content:space-between; padding:14px 18px; position:sticky; top:0; background:var(--bg); z-index:10; border-bottom:1px solid transparent;}
+  .topbar.scrolled{border-bottom-color:var(--border);}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-mark{width:34px; height:34px; border-radius:10px; background:linear-gradient(155deg,var(--primary),var(--primary-dark)); display:flex; align-items:center; justify-content:center; color:#fff; font-family:'Noto Naskh Arabic',serif; font-weight:700; font-size:17px; box-shadow:var(--shadow);}
+  .brand-name{font-family:'Noto Naskh Arabic',serif; font-weight:700; font-size:19px; color:var(--primary-dark);}
+  .icon-btn{width:38px; height:38px; border-radius:50%; border:1px solid var(--border); background:var(--surface); display:flex; align-items:center; justify-content:center; font-size:18px; color:var(--text-muted);}
+  .icon-btn:active{background:var(--surface-2);}
+  .status-pill{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-muted); background:var(--surface); border:1px solid var(--border); padding:4px 10px; border-radius:999px;}
+  .status-dot{width:7px; height:7px; border-radius:50%; background:var(--correct);}
+  .status-dot.off{background:var(--incorrect);}
+
+  .screen{display:none; padding:6px 18px 32px; flex:1;}
+  .screen.active{display:block; animation:fadein .25s ease;}
+  @keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  /* Home */
+  .hero{background:linear-gradient(160deg,var(--primary) 0%, var(--primary-dark) 100%); border-radius:20px; padding:26px 22px; color:#fff; margin:10px 0 22px; box-shadow:var(--shadow-lg); position:relative; overflow:hidden;}
+  .hero::after{content:""; position:absolute; inset-inline-end:-30px; top:-30px; width:130px; height:130px; border-radius:50%; background:rgba(255,255,255,0.08);}
+  .hero h1{color:#fff; font-size:24px; line-height:1.6;}
+  .hero p{color:rgba(255,255,255,0.82); font-size:14px; margin-top:8px; line-height:1.9;}
+  .nav-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .nav-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 16px; text-align:right; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:10px; align-items:flex-start;}
+  .nav-card:active{transform:scale(.98);}
+  .nav-card .emoji{width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px;}
+  .nav-card h3{font-size:15.5px; color:var(--text);}
+  .nav-card p{margin:0; font-size:12.5px; color:var(--text-muted); line-height:1.6;}
+  .nav-card.wide{grid-column:1 / -1; flex-direction:row; align-items:center; justify-content:space-between;}
+
+  /* Buttons */
+  .btn{border:none; border-radius:12px; padding:13px 20px; font-size:15px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:8px;}
+  .btn-primary{background:var(--primary); color:#fff;}
+  .btn-primary:active{background:var(--primary-dark);}
+  .btn-accent{background:var(--accent); color:#fff;}
+  .btn-ghost{background:var(--surface); color:var(--text); border:1px solid var(--border);}
+  .btn-danger{background:var(--incorrect-bg); color:var(--incorrect); border:1px solid #f0c9c4;}
+  .btn-block{width:100%;}
+  .btn:disabled{opacity:.45;}
+  .back-row{display:flex; align-items:center; gap:10px; margin:10px 0 4px;}
+  .back-row h2{font-size:19px;}
+
+  /* Reading screen */
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); margin-bottom:14px;}
+  .reading-card{border-top:4px solid var(--accent); position:relative;}
+  .reading-card::before{content:"❁"; position:absolute; top:10px; inset-inline-start:14px; color:var(--accent); opacity:.55; font-size:13px;}
+  .sentence-text{font-size:23px; line-height:2.5; text-align:center; padding:14px 6px 6px;}
+  .word{display:inline-block; padding:1px 3px; border-radius:6px; transition:all .2s ease;}
+  .word.correct{background:var(--correct-bg); color:var(--correct);}
+  .word.incorrect{background:var(--incorrect-bg); color:var(--incorrect); text-decoration:line-through;}
+  .word.pending{color:var(--text);}
+  .progress-row{display:flex; justify-content:center; gap:6px; margin:14px 0 4px;}
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--border);}
+  .dot.done{background:var(--primary);}
+  .dot.current{background:var(--accent);}
+  .mic-wrap{display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:18px;}
+  .mic-btn{width:76px; height:76px; border-radius:50%; border:none; background:var(--primary); color:#fff; font-size:28px; box-shadow:0 8px 20px rgba(20,107,98,0.35);}
+  .mic-btn.listening{background:var(--incorrect); animation:pulse 1.2s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(192,57,43,.35);} 70%{box-shadow:0 0 0 18px rgba(192,57,43,0);} 100%{box-shadow:0 0 0 0 rgba(192,57,43,0);}}
+  .mic-label{font-size:13px; color:var(--text-muted);}
+  .hint{font-size:12.5px; color:var(--text-muted); text-align:center; margin-top:6px;}
+  .row-2{display:flex; gap:10px;}
+  .row-2 > *{flex:1;}
+  .textarea, .input{width:100%; border:1px solid var(--border); border-radius:12px; padding:12px 14px; font-family:'Vazirmatn'; font-size:15px; background:var(--surface); resize:vertical;}
+  .field-label{font-size:13px; color:var(--text-muted); margin-bottom:6px; display:block;}
+
+  /* Summary */
+  .summary-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0;}
+  .stat-box{background:var(--surface-2); border-radius:12px; padding:14px; text-align:center;}
+  .stat-box .num{font-size:24px; font-weight:800; color:var(--primary-dark); font-family:'Noto Naskh Arabic',serif;}
+  .stat-box .lbl{font-size:12px; color:var(--text-muted); margin-top:2px;}
+
+  /* Library */
+  .level-tabs{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px;}
+  .level-tab{flex-shrink:0; padding:8px 16px; border-radius:999px; border:1px solid var(--border); background:var(--surface); font-size:13px; color:var(--text-muted);}
+  .level-tab.active{background:var(--primary); color:#fff; border-color:var(--primary);}
+  .text-item{display:flex; justify-content:space-between; align-items:center; padding:14px; background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-bottom:10px;}
+  .text-item .ti-title{font-size:14.5px; font-weight:600;}
+  .text-item .ti-meta{font-size:11.5px; color:var(--text-muted); margin-top:3px;}
+
+  /* Dictation */
+  .word-display{font-size:30px; text-align:center; padding:22px 0 10px; color:var(--primary-dark); font-family:'Noto Naskh Arabic',serif;}
+  .speaker-btn{display:block; margin:0 auto 14px; width:56px; height:56px; border-radius:50%; background:var(--accent-light); border:none; color:var(--accent); font-size:24px;}
+
+  /* Stats */
+  canvas{width:100%; height:180px;}
+  .history-row{display:flex; justify-content:space-between; align-items:center; padding:12px 4px; border-bottom:1px solid var(--border); font-size:13px;}
+  .history-row:last-child{border-bottom:none;}
+  .pill-small{font-size:11px; padding:2px 8px; border-radius:999px; background:var(--primary-light); color:var(--primary-dark);}
+
+  /* Settings */
+  .settings-group{margin-bottom:18px;}
+  .settings-group h3{font-size:13px; color:var(--text-muted); margin-bottom:8px; font-family:'Vazirmatn'; font-weight:600;}
+  .settings-item{display:flex; justify-content:space-between; align-items:center; background:var(--surface); border:1px solid var(--border); padding:14px; border-radius:12px; margin-bottom:8px;}
+  .settings-item .si-text{font-size:14px;}
+  .settings-item .si-sub{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
+  .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--primary-dark); color:#fff; padding:12px 22px; border-radius:999px; font-size:13.5px; box-shadow:var(--shadow-lg); z-index:100; opacity:0; pointer-events:none; transition:opacity .25s ease;}
+  .toast.show{opacity:1;}
+  .empty-state{text-align:center; padding:40px 10px; color:var(--text-muted);}
+  .empty-state .ee-icon{font-size:34px; margin-bottom:10px;}
+  input[type=file]{display:none;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar" id="topbar">
+    <div class="brand">
+      <div class="brand-mark">هم</div>
+      <div class="brand-name">هم‌خوان</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <div class="status-pill" id="statusPill"><span class="status-dot" id="statusDot"></span><span id="statusText">آنلاین</span></div>
+      <button class="icon-btn" onclick="go('settings')">⚙️</button>
+    </div>
+  </div>
+
+  <!-- HOME -->
+  <div class="screen active" id="screen-home">
+    <div class="hero">
+      <h1>سلام قهرمان خوش‌خوان! 👋</h1>
+      <p>هر روز چند دقیقه تمرین روخوانی و دیکته کن تا خوندنت روون‌تر بشه.</p>
+    </div>
+    <div class="nav-grid">
+      <button class="nav-card" onclick="startReadingFlow()">
+        <div class="emoji" style="background:var(--primary-light); color:var(--primary-dark);">📖</div>
+        <h3>روخوانی</h3>
+        <p>یک متن رو بخون، ببین کجاها درسته و کجاها نیاز به تمرین داره.</p>
+      </button>
+      <button class="nav-card" onclick="go('dictationSetup')">
+        <div class="emoji" style="background:var(--accent-light); color:var(--accent);">✍️</div>
+        <h3>دیکته</h3>
+        <p>گوش کن و کلمه رو درست بنویس.</p>
+      </button>
+      <button class="nav-card" onclick="go('library')">
+        <div class="emoji" style="background:#EAE6F5; color:#6C4FBF;">📚</div>
+        <h3>کتابخانه متون</h3>
+        <p>متن‌های آماده بر اساس سن و سطح</p>
+      </button>
+      <button class="nav-card" onclick="go('stats')">
+        <div class="emoji" style="background:#FDE6E0; color:#C0602E;">📈</div>
+        <h3>پیشرفت من</h3>
+        <p>نمرات و روند پیشرفت در طول زمان</p>
+      </button>
+      <button class="nav-card wide" onclick="go('library')">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="emoji" style="background:var(--surface-2); color:var(--text-muted);">➕</div>
+          <div>
+            <h3 style="margin-bottom:2px;">افزودن متن دلخواه</h3>
+            <p>متن خودت رو برای تمرین اضافه کن</p>
+          </div>
+        </div>
+        <span style="color:var(--text-muted);">‹</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- READING -->
+  <div class="screen" id="screen-reading">
+    <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>روخوانی</h2></div>
+    <div class="card reading-card">
+      <div class="progress-row" id="sentenceProgress"></div>
+      <div class="sentence-text" id="sentenceText"></div>
+    </div>
+    <div class="mic-wrap">
+      <button class="mic-btn" id="micBtn" onclick="toggleReadingMic()">🎙️</button>
+      <div class="mic-label" id="micLabel">برای شروع، دکمه رو بزن و جمله رو بخون</div>
+    </div>
+    <div class="hint" id="readingHint"></div>
+    <div class="row-2" style="margin-top:22px;">
+      <button class="btn btn-ghost" onclick="repeatSentence()">شنیدن دوباره؟ تکرار جمله</button>
+      <button class="btn btn-primary" id="nextSentenceBtn" onclick="nextSentence()" disabled>جمله بعد ›</button>
+    </div>
+  </div>
+
+  <!-- READING SUMMARY -->
+  <div class="screen" id="screen-readingSummary">
+    <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>نتیجه روخوانی</h2></div>
+    <div class="card" style="text-align:center;">
+      <div style="font-size:40px;">🎉</div>
+      <h3 style="margin-top:8px;">آفرین! خیلی خوب خوندی</h3>
+    </div>
+    <div class="summary-grid">
+      <div class="stat-box"><div class="num" id="sumAccuracy">--%</div><div class="lbl">درصد دقت</div></div>
+      <div class="stat-box"><div class="num" id="sumWpm">--</div><div class="lbl">کلمه در دقیقه</div></div>
+      <div class="stat-box"><div class="num" id="sumCorrect">--</div><div class="lbl">کلمات درست</div></div>
+      <div class="stat-box"><div class="num" id="sumWrong">--</div><div class="lbl">کلمات نیازمند تمرین</div></div>
+    </div>
+    <div class="card" id="wrongWordsCard" style="display:none;">
+      <h3 style="font-size:14px; margin-bottom:10px;">کلماتی که بیشتر نیاز به تمرین دارن:</h3>
+      <div id="wrongWordsList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="go('home')">بازگشت به صفحه اصلی</button>
+  </div>
+
+  <!-- LIBRARY -->
+  <div class="screen" id="screen-library">
+    <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>کتابخانه متون</h2></div>
+    <div class="level-tabs" id="levelTabs"></div>
+    <div id="textList"></div>
+    <div class="card">
+      <h3 style="font-size:14px; margin-bottom:10px;">افزودن متن دلخواه</h3>
+      <label class="field-label">عنوان</label>
+      <input class="input" id="customTitle" placeholder="مثلاً: داستان کبوتر مهربان" style="margin-bottom:10px;">
+      <label class="field-label">سطح سنی</label>
+      <select class="input" id="customLevel" style="margin-bottom:10px;">
+        <option value="7">۷ سال</option>
+        <option value="8-9">۸ تا ۹ سال</option>
+        <option value="10-12">۱۰ تا ۱۲ سال</option>
+      </select>
+      <label class="field-label">متن (هر جمله در یک خط جدید توصیه می‌شود)</label>
+      <textarea class="textarea" id="customText" rows="5" placeholder="متن را اینجا بنویس یا کپی کن..."></textarea>
+      <button class="btn btn-accent btn-block" style="margin-top:10px;" onclick="saveCustomText()">افزودن به کتابخانه</button>
+    </div>
+  </div>
+
+  <!-- DICTATION SETUP -->
+  <div class="screen" id="screen-dictationSetup">
+    <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>دیکته کلمات</h2></div>
+    <div class="card">
+      <label class="field-label">سطح سنی</label>
+      <select class="input" id="dictLevel" style="margin-bottom:14px;">
+        <option value="7">۷ سال</option>
+        <option value="8-9">۸ تا ۹ سال</option>
+        <option value="10-12">۱۰ تا ۱۲ سال</option>
+      </select>
+      <label class="field-label">یا کلمات دلخواه بنویس (با کاما جدا کن)</label>
+      <textarea class="textarea" id="dictCustomWords" rows="3" placeholder="مثلاً: مدرسه، کتاب، دوچرخه"></textarea>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="startDictation()">شروع دیکته</button>
+  </div>
+
+  <!-- DICTATION -->
+  <div class="screen" id="screen-dictation">
+    <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>دیکته</h2></div>
+    <div class="card" style="text-align:center;">
+      <div class="progress-row" id="dictProgress"></div>
+      <button class="speaker-btn" onclick="speakCurrentWord()">🔊</button>
+      <div class="hint" id="dictHint">به کلمه گوش کن و در جعبه پایین بنویس</div>
+    </div>
+    <input class="input" id="dictInput" placeholder="کلمه را اینجا بنویس..." style="font-size:20px; text-align:center; margin:14px 0;" autocomplete="off">
+    <div id="dictResult" style="text-align:center; font-size:15px; min-height:22px; margin-bottom:10px;"></div>
+    <button class="btn btn-primary btn-block" id="dictCheckBtn" onclick="checkDictationWord()">بررسی کن</button>
+  </div>
+
+  <!-- DICTATION SUMMARY -->
+  <div class="screen" id="screen-dictationSummary">
+    <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>نتیجه دیکته</h2></div>
+    <div class="card" style="text-align:center;">
+      <div style="font-size:40px;">✍️</div>
+      <h3 style="margin-top:8px;">دیکته تمام شد!</h3>
+    </div>
+    <div class="summary-grid">
+      <div class="stat-box"><div class="num" id="dsumAccuracy">--%</div><div class="lbl">درصد دقت</div></div>
+      <div class="stat-box"><div class="num" id="dsumCorrect">--</div><div class="lbl">کلمات درست</div></div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="go('home')">بازگشت به صفحه اصلی</button>
+  </div>
+
+  <!-- STATS -->
+  <div class="screen" id="screen-stats">
+    <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>پیشرفت من</h2></div>
+    <div class="card">
+      <h3 style="font-size:14px; margin-bottom:10px;">روند درصد دقت</h3>
+      <canvas id="chartCanvas"></canvas>
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px; margin-bottom:6px;">تاریخچه جلسات</h3>
+      <div id="historyList"></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="screen" id="screen-settings">
+    <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>تنظیمات</h2></div>
+
+    <div class="settings-group">
+      <h3>وضعیت برنامه</h3>
+      <div class="settings-item">
+        <div><div class="si-text">اتصال اینترنت</div><div class="si-sub" id="settingsOnlineSub">در حال بررسی...</div></div>
+        <span id="settingsOnlineDot" class="status-dot"></span>
+      </div>
+      <div class="settings-item">
+        <div><div class="si-text">حالت اجرا</div><div class="si-sub" id="settingsModeSub">در حال بررسی...</div></div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h3>نسخه برنامه</h3>
+      <div class="settings-item">
+        <div><div class="si-text">نسخه فعلی: <span id="currentVersion">--</span></div><div class="si-sub" id="versionCheckResult">برای بررسی به‌روزرسانی کلیک کن</div></div>
+        <button class="btn btn-ghost" onclick="checkVersion()">بررسی</button>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h3>پشتیبان‌گیری</h3>
+      <div class="settings-item">
+        <div><div class="si-text">خروجی گرفتن از اطلاعات</div><div class="si-sub">دانلود فایل پشتیبان (JSON)</div></div>
+        <button class="btn btn-ghost" onclick="exportBackup()">خروجی</button>
+      </div>
+      <div class="settings-item">
+        <div><div class="si-text">بازیابی از فایل پشتیبان</div><div class="si-sub">جایگزینی اطلاعات با فایل پشتیبان</div></div>
+        <button class="btn btn-ghost" onclick="document.getElementById('restoreFile').click()">بازیابی</button>
+        <input type="file" id="restoreFile" accept="application/json" onchange="importBackup(event)">
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h3>سایر</h3>
+      <div class="settings-item">
+        <div><div class="si-text">پاک کردن همه اطلاعات</div><div class="si-sub">این کار قابل بازگشت نیست</div></div>
+        <button class="btn btn-danger" onclick="clearAllData()">پاک کردن</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
+   Single-file offline-capable PWA. Data stored in localStorage.
+   ========================================================= */
+const APP_VERSION = "0.1.0";
+const DB_KEY = "hamkhan_db_v1";
+const VERSION_URL = "version.json";
+
+/* ---------- Default library ---------- */
+const DEFAULT_TEXTS = [
+  {id:"lib_7_1", level:"7", title:"گربه کوچولو", body:"یک گربه کوچولو در باغ ما زندگی می‌کند.\nاو هر روز صبح شیر می‌خورد.\nگربه ما رنگش سفید و نارنجی است.\nما او را خیلی دوست داریم."},
+  {id:"lib_7_2", level:"7", title:"باغ مادربزرگ", body:"مادربزرگ من یک باغ بزرگ دارد.\nدر باغ او گل‌های رنگارنگ می‌روید.\nهر تابستان به باغ مادربزرگ می‌رویم.\nآنجا بازی می‌کنیم و میوه می‌چینیم."},
+  {id:"lib_89_1", level:"8-9", title:"قایق کاغذی", body:"روزی پسری یک قایق کاغذی ساخت.\nقایق را روی آب رودخانه گذاشت.\nقایق آرام آرام روی آب حرکت کرد.\nپسر با خوشحالی دنبال قایق دوید.\nقایق تا انتهای رودخانه رفت و ناپدید شد."},
+  {id:"lib_89_2", level:"8-9", title:"کتابخانه شهر", body:"در محله ما یک کتابخانه بزرگ وجود دارد.\nهر جمعه با پدرم به آنجا می‌روم.\nکتاب‌های زیادی برای بچه‌ها دارد.\nمن داستان‌های علمی را خیلی دوست دارم."},
+  {id:"lib_1012_1", level:"10-12", title:"سفر به کویر", body:"تابستان گذشته خانواده ما به کویر سفر کردیم.\nشب در چادر زیر آسمان پر ستاره خوابیدیم.\nصبح زود طلوع خورشید را از بالای تپه تماشا کردیم.\nاین سفر یکی از بهترین خاطرات زندگی من شد."},
+  {id:"lib_1012_2", level:"10-12", title:"اختراع چرخ", body:"چرخ یکی از مهم‌ترین اختراعات تاریخ بشر است.\nانسان‌های باستان با ساختن چرخ، زندگی خود را آسان‌تر کردند.\nامروز چرخ در ماشین‌ها، دوچرخه‌ها و بسیاری وسایل دیگر استفاده می‌شود."}
+];
+const DEFAULT_DICT_WORDS = {
+  "7": ["مدرسه","کتاب","گربه","باغ","آب","دوست","خانه","گل"],
+  "8-9": ["دوچرخه","رودخانه","کتابخانه","پرنده","درخت","آفتاب","جمعه","بازی"],
+  "10-12": ["اختراع","کویر","خاطره","ستاره","تاریخ","تجربه","طبیعت","مسافرت"]
+};
+
+/* ---------- DB ---------- */
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(DB_KEY);
+    if(!raw) return defaultDB();
+    const parsed = JSON.parse(raw);
+    return Object.assign(defaultDB(), parsed);
+  }catch(e){ return defaultDB(); }
+}
+function defaultDB(){
+  return { customTexts: [], sessions: [], settings: {} };
+}
+function saveDB(){ localStorage.setItem(DB_KEY, JSON.stringify(db)); }
+let db = loadDB();
+
+/* ---------- Navigation ---------- */
+function go(screenName){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+screenName).classList.add('active');
+  window.scrollTo(0,0);
+  if(screenName==='library') renderLibrary();
+  if(screenName==='stats') renderStats();
+  if(screenName==='settings') renderSettings();
+}
+
+/* ---------- Toast ---------- */
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+/* ---------- Persian text normalization & diff ---------- */
+function normalizeWord(w){
+  return w
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g,'') // diacritics
+    .replace(/ي/g,'ی').replace(/ك/g,'ک')
+    .replace(/[.،,!؟?؛:"«»()\-]/g,'')
+    .trim();
+}
+function tokenize(text){
+  return text.split(/\s+/).filter(Boolean);
+}
+/* LCS-based alignment: returns array of {word, status} for reference words */
+function alignWords(refWords, spokenWords){
+  const refNorm = refWords.map(normalizeWord);
+  const spokenNorm = spokenWords.map(normalizeWord);
+  const n = refNorm.length, m = spokenNorm.length;
+  const dp = Array.from({length:n+1}, ()=>new Array(m+1).fill(0));
+  for(let i=1;i<=n;i++){
+    for(let j=1;j<=m;j++){
+      if(refNorm[i-1] && refNorm[i-1]===spokenNorm[j-1]) dp[i][j]=dp[i-1][j-1]+1;
+      else dp[i][j]=Math.max(dp[i-1][j], dp[i][j-1]);
+    }
+  }
+  const matched = new Array(n).fill(false);
+  let i=n, j=m;
+  while(i>0 && j>0){
+    if(refNorm[i-1]===spokenNorm[j-1]){ matched[i-1]=true; i--; j--; }
+    else if(dp[i-1][j] >= dp[i][j-1]) i--;
+    else j--;
+  }
+  return refWords.map((w,idx)=>({word:w, status: matched[idx] ? 'correct' : 'incorrect'}));
+}
+
+/* ---------- Speech Recognition (per-sentence, iOS-safe) ---------- */
+let recognition = null;
+let SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+function createRecognizer(){
+  if(!SpeechRecognitionAPI) return null;
+  const r = new SpeechRecognitionAPI();
+  r.lang = 'fa-IR';
+  r.continuous = false;   // critical for iOS reliability
+  r.interimResults = false;
+  r.maxAlternatives = 1;
+  return r;
+}
+
+/* ---------- Reading flow state ---------- */
+let readingState = { sentences:[], index:0, results:[], wpmStart:0, wordsCorrect:0, wordsTotal:0, wrongWords:[] };
+
+function startReadingFlow(){
+  // If no text picked yet, send to library to choose one; default to first level-7 text for quick start
+  openReadingWithText(DEFAULT_TEXTS[0]);
+}
+function openReadingWithText(textObj){
+  const sentences = textObj.body.split('\n').map(s=>s.trim()).filter(Boolean);
+  readingState = { sentences, index:0, results: sentences.map(()=>null), wordsCorrect:0, wordsTotal:0, wrongWords:[] };
+  go('reading');
+  renderSentence();
+}
+function renderSentence(){
+  const {sentences, index} = readingState;
+  document.getElementById('sentenceText').innerHTML = sentences[index].split(/\s+/).map(w=>`<span class="word pending">${w}</span>`).join(' ');
+  document.getElementById('nextSentenceBtn').disabled = true;
+  document.getElementById('micLabel').textContent = 'برای شروع، دکمه رو بزن و جمله رو بخون';
+  document.getElementById('readingHint').textContent = SpeechRecognitionAPI ? '' : 'مرورگر شما از تشخیص گفتار پشتیبانی نمی‌کند. لطفاً از سافاری یا کروم استفاده کنید.';
+  const prog = document.getElementById('sentenceProgress');
+  prog.innerHTML = sentences.map((_,i)=>{
+    let cls='dot'; if(i<index) cls+=' done'; else if(i===index) cls+=' current';
+    return `<span class="${cls}"></span>`;
+  }).join('');
+  document.getElementById('micBtn').classList.remove('listening');
+}
+function repeatSentence(){ renderSentence(); }
+
+function toggleReadingMic(){
+  if(!SpeechRecognitionAPI){ toast('تشخیص گفتار در این مرورگر پشتیبانی نمی‌شود'); return; }
+  if(!navigator.onLine){ toast('برای تشخیص گفتار به اینترنت نیاز است'); return; }
+  const btn = document.getElementById('micBtn');
+  if(btn.classList.contains('listening')){ recognition && recognition.stop(); return; }
+
+  recognition = createRecognizer();
+  const startTime = Date.now();
+  btn.classList.add('listening');
+  document.getElementById('micLabel').textContent = 'در حال شنیدن... جمله را بخوان';
+
+  recognition.onresult = (e)=>{
+    const transcript = e.results[0][0].transcript;
+    const refWords = readingState.sentences[readingState.index].split(/\s+/);
+    const spokenWords = tokenize(transcript);
+    const aligned = alignWords(refWords, spokenWords);
+    document.getElementById('sentenceText').innerHTML = aligned.map(a=>`<span class="word ${a.status}">${a.word}</span>`).join(' ');
+    const elapsedMin = (Date.now()-startTime)/60000;
+    const correctCount = aligned.filter(a=>a.status==='correct').length;
+    readingState.wordsCorrect += correctCount;
+    readingState.wordsTotal += aligned.length;
+    aligned.filter(a=>a.status==='incorrect').forEach(a=>readingState.wrongWords.push(a.word));
+    readingState.results[readingState.index] = {correct:correctCount, total:aligned.length, minutes: Math.max(elapsedMin,0.05)};
+    document.getElementById('nextSentenceBtn').disabled = false;
+    document.getElementById('micLabel').textContent = 'خوب بود! دکمه بعدی را بزن یا دوباره بخوان';
+  };
+  recognition.onerror = (e)=>{
+    btn.classList.remove('listening');
+    document.getElementById('micLabel').textContent = 'متوجه نشدم، دوباره امتحان کن';
+  };
+  recognition.onend = ()=>{ btn.classList.remove('listening'); };
+  recognition.start();
+}
+
+function nextSentence(){
+  if(readingState.index < readingState.sentences.length-1){
+    readingState.index++;
+    renderSentence();
+  } else {
+    finishReading();
+  }
+}
+function finishReading(){
+  const totalMinutes = readingState.results.filter(Boolean).reduce((s,r)=>s+r.minutes,0) || 0.1;
+  const wpm = Math.round(readingState.wordsTotal / totalMinutes) || 0;
+  const accuracy = readingState.wordsTotal ? Math.round((readingState.wordsCorrect/readingState.wordsTotal)*100) : 0;
+  document.getElementById('sumAccuracy').textContent = accuracy+'%';
+  document.getElementById('sumWpm').textContent = wpm;
+  document.getElementById('sumCorrect').textContent = readingState.wordsCorrect;
+  document.getElementById('sumWrong').textContent = readingState.wordsTotal - readingState.wordsCorrect;
+  const wwCard = document.getElementById('wrongWordsCard');
+  if(readingState.wrongWords.length){
+    wwCard.style.display='block';
+    document.getElementById('wrongWordsList').innerHTML = [...new Set(readingState.wrongWords)].map(w=>`<span class="pill-small" style="background:var(--incorrect-bg); color:var(--incorrect);">${w}</span>`).join('');
+  } else { wwCard.style.display='none'; }
+
+  db.sessions.push({
+    type:'reading', date:new Date().toISOString(), accuracy, wpm,
+    correct:readingState.wordsCorrect, total:readingState.wordsTotal
+  });
+  saveDB();
+  go('readingSummary');
+}
+
+/* ---------- Library ---------- */
+let currentLevel = "7";
+function allTexts(){ return [...DEFAULT_TEXTS, ...db.customTexts]; }
+function renderLibrary(){
+  const levels = [{k:"7",l:"۷ سال"},{k:"8-9",l:"۸ تا ۹ سال"},{k:"10-12",l:"۱۰ تا ۱۲ سال"}];
+  document.getElementById('levelTabs').innerHTML = levels.map(lv=>
+    `<button class="level-tab ${lv.k===currentLevel?'active':''}" onclick="setLevel('${lv.k}')">${lv.l}</button>`
+  ).join('');
+  const items = allTexts().filter(t=>t.level===currentLevel);
+  document.getElementById('textList').innerHTML = items.length ? items.map(t=>`
+    <div class="text-item">
+      <div><div class="ti-title">${t.title}</div><div class="ti-meta">${t.body.split('\n').filter(Boolean).length} جمله</div></div>
+      <button class="btn btn-primary" onclick='openReadingWithText(${JSON.stringify(t).replace(/'/g,"&#39;")})'>خواندن</button>
+    </div>`).join('') : `<div class="empty-state"><div class="ee-icon">📭</div>متنی برای این سطح سنی وجود ندارد</div>`;
+}
+function setLevel(l){ currentLevel = l; renderLibrary(); }
+function saveCustomText(){
+  const title = document.getElementById('customTitle').value.trim();
+  const level = document.getElementById('customLevel').value;
+  const body = document.getElementById('customText').value.trim();
+  if(!title || !body){ toast('لطفاً عنوان و متن را وارد کن'); return; }
+  db.customTexts.push({id:'custom_'+Date.now(), level, title, body});
+  saveDB();
+  document.getElementById('customTitle').value='';
+  document.getElementById('customText').value='';
+  toast('متن اضافه شد');
+  renderLibrary();
+}
+
+/* ---------- Dictation ---------- */
+let dictState = { words:[], index:0, correct:0 };
+let ttsVoiceFa = null;
+function loadVoices(){
+  const voices = speechSynthesis.getVoices();
+  ttsVoiceFa = voices.find(v=>v.lang && v.lang.toLowerCase().startsWith('fa')) || null;
+}
+if('speechSynthesis' in window){
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+function startDictation(){
+  const level = document.getElementById('dictLevel').value;
+  const customRaw = document.getElementById('dictCustomWords').value.trim();
+  let words;
+  if(customRaw){
+    words = customRaw.split(/[,،]/).map(w=>w.trim()).filter(Boolean);
+  } else {
+    words = DEFAULT_DICT_WORDS[level];
+  }
+  if(!words || !words.length){ toast('کلمه‌ای برای دیکته پیدا نشد'); return; }
+  dictState = { words, index:0, correct:0 };
+  go('dictation');
+  renderDictWord();
+}
+function renderDictWord(){
+  const {words, index} = dictState;
+  document.getElementById('dictInput').value='';
+  document.getElementById('dictResult').textContent='';
+  document.getElementById('dictCheckBtn').textContent='بررسی کن';
+  document.getElementById('dictCheckBtn').onclick = checkDictationWord;
+  const prog = document.getElementById('dictProgress');
+  prog.innerHTML = words.map((_,i)=>{
+    let cls='dot'; if(i<index) cls+=' done'; else if(i===index) cls+=' current';
+    return `<span class="${cls}"></span>`;
+  }).join('');
+  setTimeout(speakCurrentWord, 300);
+}
+function speakCurrentWord(){
+  const word = dictState.words[dictState.index];
+  if(!('speechSynthesis' in window)){ toast('پخش صدا در این مرورگر پشتیبانی نمی‌شود'); return; }
+  const u = new SpeechSynthesisUtterance(word);
+  u.lang = 'fa-IR';
+  if(ttsVoiceFa) u.voice = ttsVoiceFa;
+  speechSynthesis.cancel();
+  speechSynthesis.speak(u);
+}
+function checkDictationWord(){
+  const input = document.getElementById('dictInput').value.trim();
+  const word = dictState.words[dictState.index];
+  const isCorrect = normalizeWord(input) === normalizeWord(word);
+  if(isCorrect) dictState.correct++;
+  document.getElementById('dictResult').innerHTML = isCorrect
+    ? `<span style="color:var(--correct);">✔ درست بود!</span>`
+    : `<span style="color:var(--incorrect);">✘ درست: ${word}</span>`;
+  document.getElementById('dictCheckBtn').textContent = dictState.index < dictState.words.length-1 ? 'کلمه بعد' : 'پایان دیکته';
+  document.getElementById('dictCheckBtn').onclick = nextDictWord;
+}
+function nextDictWord(){
+  if(dictState.index < dictState.words.length-1){
+    dictState.index++;
+    renderDictWord();
+  } else {
+    finishDictation();
+  }
+}
+function finishDictation(){
+  const accuracy = Math.round((dictState.correct/dictState.words.length)*100);
+  document.getElementById('dsumAccuracy').textContent = accuracy+'%';
+  document.getElementById('dsumCorrect').textContent = dictState.correct+' از '+dictState.words.length;
+  db.sessions.push({type:'dictation', date:new Date().toISOString(), accuracy, correct:dictState.correct, total:dictState.words.length});
+  saveDB();
+  go('dictationSummary');
+}
+
+/* ---------- Stats ---------- */
+function renderStats(){
+  const sessions = [...db.sessions].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const canvas = document.getElementById('chartCanvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 300, cssH = 180;
+  canvas.width = cssW*dpr; canvas.height = cssH*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+  if(!sessions.length){
+    ctx.fillStyle = '#B0A797'; ctx.font='13px Vazirmatn'; ctx.textAlign='center';
+    ctx.fillText('هنوز جلسه‌ای ثبت نشده', cssW/2, cssH/2);
+  } else {
+    const padding = 24;
+    const points = sessions.slice(-15);
+    const maxY = 100, minY = 0;
+    const stepX = (cssW - padding*2) / Math.max(points.length-1,1);
+    ctx.strokeStyle = '#146B62'; ctx.lineWidth = 2.5; ctx.beginPath();
+    points.forEach((p,i)=>{
+      const x = padding + i*stepX;
+      const y = cssH - padding - ((p.accuracy-minY)/(maxY-minY))*(cssH-padding*2);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    points.forEach((p,i)=>{
+      const x = padding + i*stepX;
+      const y = cssH - padding - ((p.accuracy-minY)/(maxY-minY))*(cssH-padding*2);
+      ctx.fillStyle = p.type==='reading' ? '#146B62' : '#D79A22';
+      ctx.beginPath(); ctx.arc(x,y,4,0,Math.PI*2); ctx.fill();
+    });
+    ctx.strokeStyle = '#E4D9C4'; ctx.lineWidth=1; ctx.beginPath();
+    ctx.moveTo(padding, cssH-padding); ctx.lineTo(cssW-padding, cssH-padding); ctx.stroke();
+  }
+
+  const list = document.getElementById('historyList');
+  const recent = [...db.sessions].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,20);
+  list.innerHTML = recent.length ? recent.map(s=>{
+    const d = new Date(s.date);
+    const dateStr = d.toLocaleDateString('fa-IR');
+    const typeLabel = s.type==='reading' ? 'روخوانی' : 'دیکته';
+    const extra = s.type==='reading' ? ` · ${s.wpm} کلمه/دقیقه` : '';
+    return `<div class="history-row"><span class="pill-small">${typeLabel}</span><span>${dateStr}</span><span>${s.accuracy}%${extra}</span></div>`;
+  }).join('') : `<div class="empty-state"><div class="ee-icon">📊</div>هنوز آماری ثبت نشده</div>`;
+}
+
+/* ---------- Settings ---------- */
+function renderSettings(){
+  document.getElementById('currentVersion').textContent = APP_VERSION;
+  updateConnectivityUI();
+}
+function updateConnectivityUI(){
+  const online = navigator.onLine;
+  document.getElementById('settingsOnlineSub').textContent = online ? 'متصل' : 'قطع — بخش روخوانی نیاز به اینترنت دارد';
+  document.getElementById('settingsOnlineDot').className = 'status-dot' + (online ? '' : ' off');
+  document.getElementById('statusText').textContent = online ? 'آنلاین' : 'آفلاین';
+  document.getElementById('statusDot').className = 'status-dot' + (online ? '' : ' off');
+
+  const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  document.getElementById('settingsModeSub').textContent = isStandalone
+    ? 'روی صفحه اصلی نصب شده — تشخیص گفتار در این حالت کار نمی‌کند. برای روخوانی، برنامه را از طریق سافاری (بوکمارک) باز کن.'
+    : 'در حال اجرا در مرورگر — همه امکانات فعال است';
+}
+window.addEventListener('online', updateConnectivityUI);
+window.addEventListener('offline', updateConnectivityUI);
+
+async function checkVersion(){
+  const el = document.getElementById('versionCheckResult');
+  el.textContent = 'در حال بررسی...';
+  try{
+    const res = await fetch(VERSION_URL + '?t=' + Date.now());
+    if(!res.ok) throw new Error('not found');
+    const data = await res.json();
+    if(data.version && data.version !== APP_VERSION){
+      el.textContent = `نسخه جدید موجود است: ${data.version} (نسخه فعلی: ${APP_VERSION})`;
+    } else {
+      el.textContent = 'شما از آخرین نسخه استفاده می‌کنید ✔';
+    }
+  }catch(e){
+    el.textContent = navigator.onLine ? 'بررسی نسخه ممکن نشد' : 'برای بررسی نسخه به اینترنت نیاز است';
+  }
+}
+
+function exportBackup(){
+  const data = JSON.stringify(db, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const dateStr = new Date().toISOString().slice(0,10);
+  a.href = url; a.download = `hamkhan-backup-${dateStr}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('فایل پشتیبان دانلود شد');
+}
+function importBackup(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const parsed = JSON.parse(e.target.result);
+      if(!parsed || typeof parsed !== 'object') throw new Error('invalid');
+      db = Object.assign(defaultDB(), parsed);
+      saveDB();
+      toast('اطلاعات با موفقیت بازیابی شد');
+      renderSettings();
+    }catch(err){
+      toast('فایل پشتیبان معتبر نیست');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+function clearAllData(){
+  if(!confirm('همه اطلاعات (تاریخچه، متون دلخواه) پاک می‌شود. مطمئنی؟')) return;
+  db = defaultDB();
+  saveDB();
+  toast('اطلاعات پاک شد');
+  renderSettings();
+}
+
+/* ---------- Init ---------- */
+updateConnectivityUI();
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
