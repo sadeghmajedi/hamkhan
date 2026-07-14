@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root{
     --bg: #FBF6EC;
@@ -160,10 +161,10 @@
       <p>هر روز چند دقیقه تمرین روخوانی و دیکته کن تا خوندنت روون‌تر بشه.</p>
     </div>
     <div class="nav-grid">
-      <button class="nav-card" onclick="startReadingFlow()">
+      <button class="nav-card" onclick="go('library')">
         <div class="emoji" style="background:var(--primary-light); color:var(--primary-dark);">📖</div>
         <h3>روخوانی</h3>
-        <p>یک متن رو بخون، ببین کجاها درسته و کجاها نیاز به تمرین داره.</p>
+        <p>یک متن رو انتخاب کن و شروع به خواندن کن.</p>
       </button>
       <button class="nav-card" onclick="go('dictationSetup')">
         <div class="emoji" style="background:var(--accent-light); color:var(--accent);">✍️</div>
@@ -237,6 +238,16 @@
     <div class="level-tabs" id="levelTabs"></div>
     <div id="textList"></div>
     <div class="card">
+      <h3 style="font-size:14px; margin-bottom:6px;">📄 وارد کردن متن از PDF</h3>
+      <p style="font-size:12px; color:var(--text-muted); margin:0 0 12px; line-height:1.8;">
+        فایل PDF رو انتخاب کن؛ متن آن به‌طور خودکار استخراج می‌شود (کاملاً در همین مرورگر، بدون ارسال به سرور). چون استخراج خودکار همیشه کامل تمیز نیست، بعد از استخراج یک بار متن را مرور و اصلاح کن.
+      </p>
+      <button class="btn btn-ghost btn-block" onclick="document.getElementById('pdfFile').click()">انتخاب فایل PDF</button>
+      <input type="file" id="pdfFile" accept="application/pdf" onchange="handlePdfUpload(event)">
+      <div id="pdfStatus" style="font-size:12.5px; color:var(--text-muted); margin-top:10px; text-align:center;"></div>
+    </div>
+
+    <div class="card">
       <h3 style="font-size:14px; margin-bottom:10px;">افزودن متن دلخواه</h3>
       <label class="field-label">عنوان</label>
       <input class="input" id="customTitle" placeholder="مثلاً: داستان کبوتر مهربان" style="margin-bottom:10px;">
@@ -247,8 +258,19 @@
         <option value="10-12">۱۰ تا ۱۲ سال</option>
       </select>
       <label class="field-label">متن (هر جمله در یک خط جدید توصیه می‌شود)</label>
-      <textarea class="textarea" id="customText" rows="5" placeholder="متن را اینجا بنویس یا کپی کن..."></textarea>
-      <button class="btn btn-accent btn-block" style="margin-top:10px;" onclick="saveCustomText()">افزودن به کتابخانه</button>
+      <textarea class="textarea" id="customText" rows="8" placeholder="متن را اینجا بنویس یا کپی کن..."></textarea>
+      <button class="btn btn-accent btn-block" style="margin-top:10px;" onclick="saveCustomText()">افزودن به کتابخانه (یک متن واحد)</button>
+
+      <div style="border-top:1px solid var(--border); margin:16px 0; padding-top:14px;">
+        <label class="field-label">برای کتاب‌های بلند: تقسیم خودکار به چند بخش</label>
+        <div class="row-2" style="margin-bottom:10px;">
+          <div>
+            <label class="field-label">تعداد جمله در هر بخش</label>
+            <input class="input" id="chapterSize" type="number" value="6" min="2" max="30">
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-block" onclick="splitIntoChapters()">تقسیم متن بالا و افزودن همه‌ی بخش‌ها</button>
+      </div>
     </div>
   </div>
 
@@ -372,7 +394,7 @@
    هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
    Single-file offline-capable PWA. Data stored in localStorage.
    ========================================================= */
-const APP_VERSION = "0.1.1";
+const APP_VERSION = "0.2.0";
 const DB_KEY = "hamkhan_db_v1";
 const VERSION_URL = "version.json";
 
@@ -611,6 +633,74 @@ function renderLibrary(){
     </div>`).join('') : `<div class="empty-state"><div class="ee-icon">📭</div>متنی برای این سطح سنی وجود ندارد</div>`;
 }
 function setLevel(l){ currentLevel = l; renderLibrary(); }
+
+/* ---------- PDF import (client-side, no server — via pdf.js) ---------- */
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+function autoSplitSentences(rawText){
+  // Collapse excess whitespace, then break onto new lines after sentence-ending punctuation
+  // so the reading engine (which splits on newlines) gets reasonable per-sentence chunks.
+  let text = rawText.replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim();
+  text = text.replace(/([.!؟?])\s+/g, '$1\n');
+  return text.split('\n').map(s=>s.trim()).filter(Boolean).join('\n');
+}
+async function handlePdfUpload(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('pdfStatus');
+  if(!window.pdfjsLib){
+    statusEl.textContent = 'کتابخانه‌ی PDF بارگذاری نشد. اتصال اینترنت را بررسی کن و دوباره امتحان کن.';
+    return;
+  }
+  statusEl.textContent = 'در حال خواندن فایل...';
+  try{
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+    let fullText = '';
+    for(let i=1; i<=pdf.numPages; i++){
+      statusEl.textContent = `در حال استخراج صفحه ${i} از ${pdf.numPages}...`;
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items.map(it=>it.str).join(' ');
+      fullText += pageText + '\n';
+    }
+    const cleaned = autoSplitSentences(fullText);
+    document.getElementById('customText').value = cleaned;
+    document.getElementById('customTitle').value = file.name.replace(/\.pdf$/i, '');
+    const sentenceCount = cleaned.split('\n').filter(Boolean).length;
+    statusEl.textContent = `✔ استخراج انجام شد: ${pdf.numPages} صفحه، حدود ${sentenceCount} جمله. لطفاً متن پایین را مرور و در صورت نیاز اصلاح کن.`;
+    toast('متن استخراج شد — لطفاً پیش از افزودن مرور کن');
+  }catch(err){
+    statusEl.textContent = 'استخراج متن ناموفق بود. ممکن است PDF اسکن‌شده (تصویری) باشد که نیاز به OCR دارد.';
+    logDiag('PDF extraction error: ' + err.message);
+  }
+  event.target.value = '';
+}
+function splitIntoChapters(){
+  const title = document.getElementById('customTitle').value.trim();
+  const level = document.getElementById('customLevel').value;
+  const body = document.getElementById('customText').value.trim();
+  const chapterSize = parseInt(document.getElementById('chapterSize').value, 10) || 6;
+  if(!title || !body){ toast('لطفاً عنوان و متن را وارد کن'); return; }
+  const sentences = body.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!sentences.length){ toast('متنی برای تقسیم پیدا نشد'); return; }
+  let count = 0;
+  for(let i=0; i<sentences.length; i+=chapterSize){
+    const chunk = sentences.slice(i, i+chapterSize);
+    count++;
+    db.customTexts.push({
+      id: 'custom_' + Date.now() + '_' + count,
+      level, title: `${title} — بخش ${count}`, body: chunk.join('\n')
+    });
+  }
+  saveDB();
+  document.getElementById('customTitle').value='';
+  document.getElementById('customText').value='';
+  document.getElementById('pdfStatus').textContent='';
+  toast(`${count} بخش به کتابخانه اضافه شد`);
+  renderLibrary();
+}
 function saveCustomText(){
   const title = document.getElementById('customTitle').value.trim();
   const level = document.getElementById('customLevel').value;
@@ -627,14 +717,6 @@ function saveCustomText(){
 /* ---------- Dictation ---------- */
 let dictState = { words:[], index:0, correct:0 };
 let ttsVoiceFa = null;
-function loadVoices(){
-  const voices = speechSynthesis.getVoices();
-  ttsVoiceFa = voices.find(v=>v.lang && v.lang.toLowerCase().startsWith('fa')) || null;
-}
-if('speechSynthesis' in window){
-  loadVoices();
-  speechSynthesis.onvoiceschanged = loadVoices;
-}
 function startDictation(){
   const level = document.getElementById('dictLevel').value;
   const customRaw = document.getElementById('dictCustomWords').value.trim();
@@ -662,15 +744,37 @@ function renderDictWord(){
   }).join('');
   setTimeout(speakCurrentWord, 300);
 }
-let currentUtterance = null; // kept in outer scope: iOS Safari silently drops utterances that get garbage-collected
+let currentUtterance = null; // kept in outer scope: some browsers silently drop unreferenced utterances
+let voicesLoaded = false;
+function loadVoices(){
+  const voices = speechSynthesis.getVoices();
+  if(voices.length){ voicesLoaded = true; }
+  ttsVoiceFa = voices.find(v=>v.lang && v.lang.toLowerCase().startsWith('fa')) || null;
+}
+if('speechSynthesis' in window){
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
 function speakCurrentWord(){
   const word = dictState.words[dictState.index];
   if(!('speechSynthesis' in window)){ toast('پخش صدا در این مرورگر پشتیبانی نمی‌شود'); return; }
+
+  // Chrome sometimes returns an empty voice list on the very first call; retry briefly.
+  if(!voicesLoaded){
+    loadVoices();
+    if(!voicesLoaded){
+      setTimeout(()=>{ loadVoices(); speakWordNow(word); }, 250);
+      return;
+    }
+  }
+  speakWordNow(word);
+}
+function speakWordNow(word){
   if(!ttsVoiceFa){
-    logDiag('هیچ صدای fa-IR در این دستگاه پیدا نشد (' + speechSynthesis.getVoices().length + ' صدا در کل موجود است)');
+    logDiag('هیچ صدای fa در این دستگاه پیدا نشد (' + speechSynthesis.getVoices().length + ' صدا در کل موجود است) — با صدای پیش‌فرض تلاش می‌شود');
+    toast('صدای فارسی روی این دستگاه نصب نیست؛ برای نصب: Settings ← Time & Language ← Language & region ← Add a language ← Persian');
   }
   speechSynthesis.cancel();
-  // iOS Safari sometimes leaves the synthesis engine in a paused state after backgrounding; resume() is a safe no-op otherwise
   speechSynthesis.resume();
   const u = new SpeechSynthesisUtterance(word);
   u.lang = 'fa-IR';
@@ -678,7 +782,6 @@ function speakCurrentWord(){
   if(ttsVoiceFa) u.voice = ttsVoiceFa;
   u.onerror = (e)=>{ logDiag('speechSynthesis error: ' + e.error); toast('پخش صدا با خطا مواجه شد'); };
   currentUtterance = u;
-  // small delay avoids a known Safari race where speak() right after cancel() is dropped
   setTimeout(()=>{ speechSynthesis.speak(currentUtterance); }, 60);
 }
 function checkDictationWord(){
@@ -812,9 +915,12 @@ function updateConnectivityUI(){
   document.getElementById('statusDot').className = 'status-dot' + (online ? '' : ' off');
 
   const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-  document.getElementById('settingsModeSub').textContent = isStandalone
-    ? 'روی صفحه اصلی نصب شده — تشخیص گفتار در این حالت کار نمی‌کند. برای روخوانی، برنامه را از طریق سافاری (بوکمارک) باز کن.'
-    : 'در حال اجرا در مرورگر — همه امکانات فعال است';
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  document.getElementById('settingsModeSub').textContent = (isStandalone && isIOS)
+    ? 'روی صفحه اصلی نصب شده — تشخیص گفتار در این حالت روی iOS کار نمی‌کند. برای روخوانی، برنامه را از طریق سافاری (بوکمارک) باز کن.'
+    : isStandalone
+      ? 'به‌صورت برنامه‌ی نصب‌شده در حال اجراست'
+      : 'در حال اجرا در مرورگر — همه امکانات فعال است';
 }
 window.addEventListener('online', updateConnectivityUI);
 window.addEventListener('offline', updateConnectivityUI);
