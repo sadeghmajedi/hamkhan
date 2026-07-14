@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hamkhan-cache-v0.1.1';
+const CACHE_NAME = 'hamkhan-cache-v0.2.0';
 const APP_SHELL = [
   './',
   './index.html',
