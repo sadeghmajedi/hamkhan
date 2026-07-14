@@ -345,6 +345,16 @@
     </div>
 
     <div class="settings-group">
+      <h3>عیب‌یابی</h3>
+      <div class="settings-item" style="flex-direction:column; align-items:stretch;">
+        <div class="si-text" style="margin-bottom:8px;">وضعیت فنی دستگاه</div>
+        <div id="diagInfo" style="font-size:12px; color:var(--text-muted); line-height:2; text-align:right;"></div>
+        <button class="btn btn-ghost" style="margin-top:10px;" onclick="testMic()">تست میکروفون</button>
+        <div id="diagLog" style="font-size:11.5px; color:var(--text-muted); margin-top:8px; max-height:120px; overflow-y:auto; text-align:right;"></div>
+      </div>
+    </div>
+
+    <div class="settings-group">
       <h3>سایر</h3>
       <div class="settings-item">
         <div><div class="si-text">پاک کردن همه اطلاعات</div><div class="si-sub">این کار قابل بازگشت نیست</div></div>
@@ -362,7 +372,7 @@
    هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
    Single-file offline-capable PWA. Data stored in localStorage.
    ========================================================= */
-const APP_VERSION = "0.1.0";
+const APP_VERSION = "0.1.1";
 const DB_KEY = "hamkhan_db_v1";
 const VERSION_URL = "version.json";
 
@@ -488,13 +498,37 @@ function renderSentence(){
 }
 function repeatSentence(){ renderSentence(); }
 
-function toggleReadingMic(){
-  if(!SpeechRecognitionAPI){ toast('تشخیص گفتار در این مرورگر پشتیبانی نمی‌شود'); return; }
+const MIC_ERROR_MESSAGES = {
+  'not-allowed': 'اجازه‌ی میکروفون داده نشد. از تنظیمات گوشی → Safari → Microphone بررسی کن.',
+  'service-not-allowed': 'سرویس تشخیص گفتار در این مرورگر/دستگاه در دسترس نیست (محدودیت سافاری).',
+  'no-speech': 'صدایی شنیده نشد، دوباره امتحان کن.',
+  'audio-capture': 'میکروفون پیدا نشد.',
+  'network': 'مشکل اتصال اینترنت هنگام تشخیص گفتار.',
+  'aborted': 'ضبط متوقف شد.'
+};
+
+async function toggleReadingMic(){
+  if(!SpeechRecognitionAPI){ toast('تشخیص گفتار در این مرورگر پشتیبانی نمی‌شود'); logDiag('SpeechRecognition API در window وجود ندارد'); return; }
   if(!navigator.onLine){ toast('برای تشخیص گفتار به اینترنت نیاز است'); return; }
   const btn = document.getElementById('micBtn');
   if(btn.classList.contains('listening')){ recognition && recognition.stop(); return; }
 
+  // Explicitly request microphone permission via getUserMedia first.
+  // On some iOS Safari versions, calling SpeechRecognition.start() directly
+  // never triggers the permission prompt at all; requesting getUserMedia
+  // first makes the OS-level permission dialog appear reliably.
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    stream.getTracks().forEach(t=>t.stop()); // we don't need the raw stream, just the permission
+  }catch(permErr){
+    logDiag('getUserMedia error: ' + permErr.name);
+    toast('اجازه‌ی میکروفون داده نشد یا در دسترس نیست');
+    document.getElementById('micLabel').textContent = 'اجازه‌ی میکروفون رد شد. از تنظیمات گوشی بررسی کن.';
+    return;
+  }
+
   recognition = createRecognizer();
+  if(!recognition){ toast('راه‌اندازی تشخیص گفتار ممکن نشد'); return; }
   const startTime = Date.now();
   btn.classList.add('listening');
   document.getElementById('micLabel').textContent = 'در حال شنیدن... جمله را بخوان';
@@ -516,10 +550,19 @@ function toggleReadingMic(){
   };
   recognition.onerror = (e)=>{
     btn.classList.remove('listening');
-    document.getElementById('micLabel').textContent = 'متوجه نشدم، دوباره امتحان کن';
+    logDiag('SpeechRecognition error: ' + e.error);
+    const msg = MIC_ERROR_MESSAGES[e.error] || ('خطا: ' + e.error);
+    document.getElementById('micLabel').textContent = msg;
+    toast(msg);
   };
   recognition.onend = ()=>{ btn.classList.remove('listening'); };
-  recognition.start();
+  try{
+    recognition.start();
+  }catch(startErr){
+    btn.classList.remove('listening');
+    logDiag('recognition.start() threw: ' + startErr.message);
+    toast('شروع تشخیص گفتار ممکن نشد');
+  }
 }
 
 function nextSentence(){
@@ -619,14 +662,24 @@ function renderDictWord(){
   }).join('');
   setTimeout(speakCurrentWord, 300);
 }
+let currentUtterance = null; // kept in outer scope: iOS Safari silently drops utterances that get garbage-collected
 function speakCurrentWord(){
   const word = dictState.words[dictState.index];
   if(!('speechSynthesis' in window)){ toast('پخش صدا در این مرورگر پشتیبانی نمی‌شود'); return; }
+  if(!ttsVoiceFa){
+    logDiag('هیچ صدای fa-IR در این دستگاه پیدا نشد (' + speechSynthesis.getVoices().length + ' صدا در کل موجود است)');
+  }
+  speechSynthesis.cancel();
+  // iOS Safari sometimes leaves the synthesis engine in a paused state after backgrounding; resume() is a safe no-op otherwise
+  speechSynthesis.resume();
   const u = new SpeechSynthesisUtterance(word);
   u.lang = 'fa-IR';
+  u.rate = 0.9;
   if(ttsVoiceFa) u.voice = ttsVoiceFa;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
+  u.onerror = (e)=>{ logDiag('speechSynthesis error: ' + e.error); toast('پخش صدا با خطا مواجه شد'); };
+  currentUtterance = u;
+  // small delay avoids a known Safari race where speak() right after cancel() is dropped
+  setTimeout(()=>{ speechSynthesis.speak(currentUtterance); }, 60);
 }
 function checkDictationWord(){
   const input = document.getElementById('dictInput').value.trim();
@@ -703,9 +756,53 @@ function renderStats(){
 }
 
 /* ---------- Settings ---------- */
+const diagLines = [];
+function logDiag(line){
+  diagLines.unshift(new Date().toLocaleTimeString('fa-IR') + ' — ' + line);
+  if(diagLines.length>10) diagLines.pop();
+  const el = document.getElementById('diagLog');
+  if(el) el.innerHTML = diagLines.join('<br>');
+}
+function renderDiagInfo(){
+  const el = document.getElementById('diagInfo');
+  if(!el) return;
+  const hasSR = !!SpeechRecognitionAPI;
+  const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  const voices = ('speechSynthesis' in window) ? speechSynthesis.getVoices() : [];
+  const faVoices = voices.filter(v=>v.lang && v.lang.toLowerCase().startsWith('fa'));
+  el.innerHTML = [
+    'پشتیبانی SpeechRecognition: ' + (hasSR ? '✔ موجود' : '✘ موجود نیست'),
+    'حالت اجرا: ' + (isStandalone ? 'نصب‌شده (Home Screen)' : 'تب مرورگر'),
+    'تعداد کل صداهای TTS: ' + voices.length,
+    'صداهای فارسی (fa) پیدا شده: ' + faVoices.length + (faVoices.length ? ' — ' + faVoices.map(v=>v.name).join('، ') : ''),
+    'User Agent: ' + navigator.userAgent.slice(0,70) + '...'
+  ].join('<br>');
+}
+async function testMic(){
+  logDiag('در حال درخواست اجازه‌ی میکروفون...');
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    logDiag('✔ اجازه‌ی میکروفون داده شد');
+    stream.getTracks().forEach(t=>t.stop());
+    if(SpeechRecognitionAPI){
+      logDiag('در حال تست SpeechRecognition...');
+      const r = createRecognizer();
+      r.onstart = ()=>logDiag('✔ SpeechRecognition شروع شد — الان یک کلمه بگو');
+      r.onresult = (e)=>logDiag('✔ شنیده شد: ' + e.results[0][0].transcript);
+      r.onerror = (e)=>logDiag('✘ خطا: ' + e.error);
+      r.onend = ()=>logDiag('پایان تست');
+      r.start();
+    } else {
+      logDiag('✘ SpeechRecognition در این مرورگر تعریف نشده');
+    }
+  }catch(e){
+    logDiag('✘ اجازه‌ی میکروفون رد شد یا در دسترس نیست: ' + e.name);
+  }
+}
 function renderSettings(){
   document.getElementById('currentVersion').textContent = APP_VERSION;
   updateConnectivityUI();
+  renderDiagInfo();
 }
 function updateConnectivityUI(){
   const online = navigator.onLine;
