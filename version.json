@@ -2,3 +2,4 @@
   "version": "0.3.0",
   "notes": "معماری تشخیص گفتار و پخش صدا تغییر کرد: به‌جای Web Speech API مرورگر، از Azure Speech (از طریق بک‌اند Cloudflare Worker) استفاده می‌شود. این نسخه روی iOS Safari و Windows Chrome/Edge به‌طور یکسان کار می‌کند."
 }
+
