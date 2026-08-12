@@ -203,7 +203,7 @@
     </div>
     <div class="mic-wrap">
       <button class="mic-btn" id="micBtn" onclick="toggleReadingMic()">🎙️</button>
-      <div class="mic-label" id="micLabel">برای شروع، دکمه رو بزن و جمله رو بخون</div>
+      <div class="mic-label" id="micLabel">برای شروع، دکمه رو بزن، جمله رو بخون، بعد دوباره بزن</div>
     </div>
     <div class="hint" id="readingHint"></div>
     <div class="row-2" style="margin-top:22px;">
@@ -394,7 +394,7 @@
    هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
    Single-file offline-capable PWA. Data stored in localStorage.
    ========================================================= */
-const APP_VERSION = "0.2.0";
+const APP_VERSION = "0.3.0";
 const DB_KEY = "hamkhan_db_v1";
 const VERSION_URL = "version.json";
 
@@ -479,18 +479,11 @@ function alignWords(refWords, spokenWords){
   return refWords.map((w,idx)=>({word:w, status: matched[idx] ? 'correct' : 'incorrect'}));
 }
 
-/* ---------- Speech Recognition (per-sentence, iOS-safe) ---------- */
-let recognition = null;
-let SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-function createRecognizer(){
-  if(!SpeechRecognitionAPI) return null;
-  const r = new SpeechRecognitionAPI();
-  r.lang = 'fa-IR';
-  r.continuous = false;   // critical for iOS reliability
-  r.interimResults = false;
-  r.maxAlternatives = 1;
-  return r;
-}
+/* ---------- Speech Recognition (via Cloudflare Worker -> Azure Speech, works on iOS + Windows) ---------- */
+const WORKER_BASE_URL = 'https://hamkhan-backend.sadeghmajedi.workers.dev';
+let mediaRecorder = null;
+let recordedChunks = [];
+let micStream = null;
 
 /* ---------- Reading flow state ---------- */
 let readingState = { sentences:[], index:0, results:[], wpmStart:0, wordsCorrect:0, wordsTotal:0, wrongWords:[] };
@@ -509,8 +502,8 @@ function renderSentence(){
   const {sentences, index} = readingState;
   document.getElementById('sentenceText').innerHTML = sentences[index].split(/\s+/).map(w=>`<span class="word pending">${w}</span>`).join(' ');
   document.getElementById('nextSentenceBtn').disabled = true;
-  document.getElementById('micLabel').textContent = 'برای شروع، دکمه رو بزن و جمله رو بخون';
-  document.getElementById('readingHint').textContent = SpeechRecognitionAPI ? '' : 'مرورگر شما از تشخیص گفتار پشتیبانی نمی‌کند. لطفاً از سافاری یا کروم استفاده کنید.';
+  document.getElementById('micLabel').textContent = 'برای شروع، دکمه رو بزن، جمله رو بخون، بعد دوباره بزن';
+  document.getElementById('readingHint').textContent = (window.MediaRecorder) ? '' : 'مرورگر شما از ضبط صدا پشتیبانی نمی‌کند.';
   const prog = document.getElementById('sentenceProgress');
   prog.innerHTML = sentences.map((_,i)=>{
     let cls='dot'; if(i<index) cls+=' done'; else if(i===index) cls+=' current';
@@ -521,42 +514,77 @@ function renderSentence(){
 function repeatSentence(){ renderSentence(); }
 
 const MIC_ERROR_MESSAGES = {
-  'not-allowed': 'اجازه‌ی میکروفون داده نشد. از تنظیمات گوشی → Safari → Microphone بررسی کن.',
-  'service-not-allowed': 'سرویس تشخیص گفتار در این مرورگر/دستگاه در دسترس نیست (محدودیت سافاری).',
-  'no-speech': 'صدایی شنیده نشد، دوباره امتحان کن.',
-  'audio-capture': 'میکروفون پیدا نشد.',
-  'network': 'مشکل اتصال اینترنت هنگام تشخیص گفتار.',
-  'aborted': 'ضبط متوقف شد.'
+  'NotAllowedError': 'اجازه‌ی میکروفون داده نشد. از تنظیمات مرورگر/گوشی بررسی کن.',
+  'NotFoundError': 'میکروفون پیدا نشد.',
 };
 
 async function toggleReadingMic(){
-  if(!SpeechRecognitionAPI){ toast('تشخیص گفتار در این مرورگر پشتیبانی نمی‌شود'); logDiag('SpeechRecognition API در window وجود ندارد'); return; }
-  if(!navigator.onLine){ toast('برای تشخیص گفتار به اینترنت نیاز است'); return; }
   const btn = document.getElementById('micBtn');
-  if(btn.classList.contains('listening')){ recognition && recognition.stop(); return; }
 
-  // Explicitly request microphone permission via getUserMedia first.
-  // On some iOS Safari versions, calling SpeechRecognition.start() directly
-  // never triggers the permission prompt at all; requesting getUserMedia
-  // first makes the OS-level permission dialog appear reliably.
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-    stream.getTracks().forEach(t=>t.stop()); // we don't need the raw stream, just the permission
-  }catch(permErr){
-    logDiag('getUserMedia error: ' + permErr.name);
-    toast('اجازه‌ی میکروفون داده نشد یا در دسترس نیست');
-    document.getElementById('micLabel').textContent = 'اجازه‌ی میکروفون رد شد. از تنظیمات گوشی بررسی کن.';
+  // Second tap: stop recording and send to the server for transcription
+  if(btn.classList.contains('listening')){
+    if(mediaRecorder && mediaRecorder.state !== 'inactive'){
+      mediaRecorder.stop();
+    }
     return;
   }
 
-  recognition = createRecognizer();
-  if(!recognition){ toast('راه‌اندازی تشخیص گفتار ممکن نشد'); return; }
-  const startTime = Date.now();
-  btn.classList.add('listening');
-  document.getElementById('micLabel').textContent = 'در حال شنیدن... جمله را بخوان';
+  if(!window.MediaRecorder){ toast('ضبط صدا در این مرورگر پشتیبانی نمی‌شود'); return; }
+  if(!navigator.onLine){ toast('برای تشخیص گفتار به اینترنت نیاز است'); return; }
 
-  recognition.onresult = (e)=>{
-    const transcript = e.results[0][0].transcript;
+  try{
+    micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+  }catch(permErr){
+    logDiag('getUserMedia error: ' + permErr.name);
+    const msg = MIC_ERROR_MESSAGES[permErr.name] || ('اجازه‌ی میکروفون داده نشد: ' + permErr.name);
+    toast(msg);
+    document.getElementById('micLabel').textContent = msg;
+    return;
+  }
+
+  recordedChunks = [];
+  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+                    : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4'
+                    : '';
+  try{
+    mediaRecorder = mimeType ? new MediaRecorder(micStream, {mimeType}) : new MediaRecorder(micStream);
+  }catch(mrErr){
+    logDiag('MediaRecorder init error: ' + mrErr.message);
+    toast('راه‌اندازی ضبط صدا ممکن نشد');
+    return;
+  }
+
+  mediaRecorder.ondataavailable = (e)=>{ if(e.data && e.data.size>0) recordedChunks.push(e.data); };
+  mediaRecorder.onstop = async ()=>{
+    btn.classList.remove('listening');
+    micStream.getTracks().forEach(t=>t.stop());
+    document.getElementById('micLabel').textContent = 'در حال پردازش...';
+    const blob = new Blob(recordedChunks, {type: mediaRecorder.mimeType || 'audio/webm'});
+    await sendForTranscription(blob);
+  };
+
+  mediaRecorder.start();
+  readingSentenceStartTime = Date.now();
+  btn.classList.add('listening');
+  document.getElementById('micLabel').textContent = 'در حال شنیدن... وقتی تموم شد دوباره دکمه رو بزن';
+}
+
+async function sendForTranscription(blob){
+  const startTime = readingSentenceStartTime || Date.now();
+  try{
+    const resp = await fetch(WORKER_BASE_URL + '/transcribe', {
+      method: 'POST',
+      headers: {'Content-Type': blob.type || 'audio/webm'},
+      body: blob
+    });
+    const data = await resp.json();
+    if(!resp.ok || data.RecognitionStatus === 'Error'){
+      logDiag('transcribe error: ' + JSON.stringify(data).slice(0,150));
+      toast('تشخیص گفتار با خطا مواجه شد، دوباره امتحان کن');
+      document.getElementById('micLabel').textContent = 'متوجه نشدم، دوباره امتحان کن';
+      return;
+    }
+    const transcript = data.DisplayText || '';
     const refWords = readingState.sentences[readingState.index].split(/\s+/);
     const spokenWords = tokenize(transcript);
     const aligned = alignWords(refWords, spokenWords);
@@ -569,23 +597,13 @@ async function toggleReadingMic(){
     readingState.results[readingState.index] = {correct:correctCount, total:aligned.length, minutes: Math.max(elapsedMin,0.05)};
     document.getElementById('nextSentenceBtn').disabled = false;
     document.getElementById('micLabel').textContent = 'خوب بود! دکمه بعدی را بزن یا دوباره بخوان';
-  };
-  recognition.onerror = (e)=>{
-    btn.classList.remove('listening');
-    logDiag('SpeechRecognition error: ' + e.error);
-    const msg = MIC_ERROR_MESSAGES[e.error] || ('خطا: ' + e.error);
-    document.getElementById('micLabel').textContent = msg;
-    toast(msg);
-  };
-  recognition.onend = ()=>{ btn.classList.remove('listening'); };
-  try{
-    recognition.start();
-  }catch(startErr){
-    btn.classList.remove('listening');
-    logDiag('recognition.start() threw: ' + startErr.message);
-    toast('شروع تشخیص گفتار ممکن نشد');
+  }catch(err){
+    logDiag('transcribe network error: ' + err.message);
+    toast('اتصال به سرویس تشخیص گفتار ممکن نشد');
+    document.getElementById('micLabel').textContent = 'خطا در اتصال، دوباره امتحان کن';
   }
 }
+let readingSentenceStartTime = null;
 
 function nextSentence(){
   if(readingState.index < readingState.sentences.length-1){
@@ -716,7 +734,6 @@ function saveCustomText(){
 
 /* ---------- Dictation ---------- */
 let dictState = { words:[], index:0, correct:0 };
-let ttsVoiceFa = null;
 function startDictation(){
   const level = document.getElementById('dictLevel').value;
   const customRaw = document.getElementById('dictCustomWords').value.trim();
@@ -744,45 +761,34 @@ function renderDictWord(){
   }).join('');
   setTimeout(speakCurrentWord, 300);
 }
-let currentUtterance = null; // kept in outer scope: some browsers silently drop unreferenced utterances
-let voicesLoaded = false;
-function loadVoices(){
-  const voices = speechSynthesis.getVoices();
-  if(voices.length){ voicesLoaded = true; }
-  ttsVoiceFa = voices.find(v=>v.lang && v.lang.toLowerCase().startsWith('fa')) || null;
-}
-if('speechSynthesis' in window){
-  loadVoices();
-  speechSynthesis.onvoiceschanged = loadVoices;
-}
-function speakCurrentWord(){
+let currentAudio = null;
+async function speakCurrentWord(){
   const word = dictState.words[dictState.index];
-  if(!('speechSynthesis' in window)){ toast('پخش صدا در این مرورگر پشتیبانی نمی‌شود'); return; }
-
-  // Chrome sometimes returns an empty voice list on the very first call; retry briefly.
-  if(!voicesLoaded){
-    loadVoices();
-    if(!voicesLoaded){
-      setTimeout(()=>{ loadVoices(); speakWordNow(word); }, 250);
+  const btn = document.querySelector('.speaker-btn');
+  if(btn) btn.disabled = true;
+  try{
+    const resp = await fetch(WORKER_BASE_URL + '/speak', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: word})
+    });
+    if(!resp.ok){
+      const errData = await resp.json().catch(()=>({}));
+      logDiag('speak error: ' + JSON.stringify(errData).slice(0,150));
+      toast('پخش صدا با خطا مواجه شد');
       return;
     }
+    const audioBlob = await resp.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    if(currentAudio){ currentAudio.pause(); }
+    currentAudio = new Audio(audioUrl);
+    currentAudio.play().catch(err=>{ logDiag('audio.play() error: ' + err.message); });
+  }catch(err){
+    logDiag('speak network error: ' + err.message);
+    toast('اتصال به سرویس پخش صدا ممکن نشد');
+  }finally{
+    if(btn) btn.disabled = false;
   }
-  speakWordNow(word);
-}
-function speakWordNow(word){
-  if(!ttsVoiceFa){
-    logDiag('هیچ صدای fa در این دستگاه پیدا نشد (' + speechSynthesis.getVoices().length + ' صدا در کل موجود است) — با صدای پیش‌فرض تلاش می‌شود');
-    toast('صدای فارسی روی این دستگاه نصب نیست؛ برای نصب: Settings ← Time & Language ← Language & region ← Add a language ← Persian');
-  }
-  speechSynthesis.cancel();
-  speechSynthesis.resume();
-  const u = new SpeechSynthesisUtterance(word);
-  u.lang = 'fa-IR';
-  u.rate = 0.9;
-  if(ttsVoiceFa) u.voice = ttsVoiceFa;
-  u.onerror = (e)=>{ logDiag('speechSynthesis error: ' + e.error); toast('پخش صدا با خطا مواجه شد'); };
-  currentUtterance = u;
-  setTimeout(()=>{ speechSynthesis.speak(currentUtterance); }, 60);
 }
 function checkDictationWord(){
   const input = document.getElementById('dictInput').value.trim();
@@ -869,15 +875,12 @@ function logDiag(line){
 function renderDiagInfo(){
   const el = document.getElementById('diagInfo');
   if(!el) return;
-  const hasSR = !!SpeechRecognitionAPI;
+  const hasMR = !!window.MediaRecorder;
   const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-  const voices = ('speechSynthesis' in window) ? speechSynthesis.getVoices() : [];
-  const faVoices = voices.filter(v=>v.lang && v.lang.toLowerCase().startsWith('fa'));
   el.innerHTML = [
-    'پشتیبانی SpeechRecognition: ' + (hasSR ? '✔ موجود' : '✘ موجود نیست'),
+    'پشتیبانی ضبط صدا (MediaRecorder): ' + (hasMR ? '✔ موجود' : '✘ موجود نیست'),
     'حالت اجرا: ' + (isStandalone ? 'نصب‌شده (Home Screen)' : 'تب مرورگر'),
-    'تعداد کل صداهای TTS: ' + voices.length,
-    'صداهای فارسی (fa) پیدا شده: ' + faVoices.length + (faVoices.length ? ' — ' + faVoices.map(v=>v.name).join('، ') : ''),
+    'آدرس سرویس تشخیص/پخش صدا: ' + WORKER_BASE_URL,
     'User Agent: ' + navigator.userAgent.slice(0,70) + '...'
   ].join('<br>');
 }
@@ -887,17 +890,12 @@ async function testMic(){
     const stream = await navigator.mediaDevices.getUserMedia({audio:true});
     logDiag('✔ اجازه‌ی میکروفون داده شد');
     stream.getTracks().forEach(t=>t.stop());
-    if(SpeechRecognitionAPI){
-      logDiag('در حال تست SpeechRecognition...');
-      const r = createRecognizer();
-      r.onstart = ()=>logDiag('✔ SpeechRecognition شروع شد — الان یک کلمه بگو');
-      r.onresult = (e)=>logDiag('✔ شنیده شد: ' + e.results[0][0].transcript);
-      r.onerror = (e)=>logDiag('✘ خطا: ' + e.error);
-      r.onend = ()=>logDiag('پایان تست');
-      r.start();
-    } else {
-      logDiag('✘ SpeechRecognition در این مرورگر تعریف نشده');
-    }
+    logDiag('در حال تست اتصال به سرویس (Cloudflare/Azure)...');
+    const resp = await fetch(WORKER_BASE_URL + '/speak', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text:'سلام'})
+    });
+    if(resp.ok){ logDiag('✔ اتصال به سرویس برقرار است'); toast('میکروفون و سرویس هر دو سالمند ✔'); }
+    else { const errData = await resp.json().catch(()=>({})); logDiag('✘ سرویس خطا داد: ' + JSON.stringify(errData).slice(0,150)); }
   }catch(e){
     logDiag('✘ اجازه‌ی میکروفون رد شد یا در دسترس نیست: ' + e.name);
   }
@@ -915,12 +913,9 @@ function updateConnectivityUI(){
   document.getElementById('statusDot').className = 'status-dot' + (online ? '' : ' off');
 
   const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  document.getElementById('settingsModeSub').textContent = (isStandalone && isIOS)
-    ? 'روی صفحه اصلی نصب شده — تشخیص گفتار در این حالت روی iOS کار نمی‌کند. برای روخوانی، برنامه را از طریق سافاری (بوکمارک) باز کن.'
-    : isStandalone
-      ? 'به‌صورت برنامه‌ی نصب‌شده در حال اجراست'
-      : 'در حال اجرا در مرورگر — همه امکانات فعال است';
+  document.getElementById('settingsModeSub').textContent = isStandalone
+    ? 'به‌صورت برنامه‌ی نصب‌شده در حال اجراست — همه امکانات فعال است'
+    : 'در حال اجرا در مرورگر — همه امکانات فعال است';
 }
 window.addEventListener('online', updateConnectivityUI);
 window.addEventListener('offline', updateConnectivityUI);
