@@ -1,9 +1,10 @@
-const CACHE_NAME = 'hamkhan-cache-v0.3.1';
+const CACHE_NAME = 'hamkhan-cache-v0.4.0';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
+  './icon-180.png',
   './icon-512.png'
 ];
 
