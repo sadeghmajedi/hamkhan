@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hamkhan-cache-v0.3.0';
+const CACHE_NAME = 'hamkhan-cache-v0.3.1';
 const APP_SHELL = [
   './',
   './index.html',
@@ -32,4 +32,3 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
-
