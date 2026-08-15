@@ -30,7 +30,6 @@
     --radius: 16px;
     --shadow: 0 2px 10px rgba(43,35,32,0.06), 0 1px 2px rgba(43,35,32,0.08);
     --shadow-lg: 0 12px 30px rgba(43,35,32,0.12);
-    
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; padding:0; background:var(--bg); color:var(--text); font-family:'Vazirmatn',sans-serif; min-height:100%;}
@@ -395,7 +394,7 @@
    هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
    Single-file offline-capable PWA. Data stored in localStorage.
    ========================================================= */
-const APP_VERSION = "0.3.0";
+const APP_VERSION = "0.3.1";
 const DB_KEY = "hamkhan_db_v1";
 const VERSION_URL = "version.json";
 
@@ -570,22 +569,100 @@ async function toggleReadingMic(){
   document.getElementById('micLabel').textContent = 'در حال شنیدن... وقتی تموم شد دوباره دکمه رو بزن';
 }
 
+/* Azure STT only accepts WAV/PCM, OGG-Opus or WebM-Opus. iOS Safari's MediaRecorder
+   produces MP4/AAC, which Azure rejects. So we decode whatever was recorded and
+   re-encode it as 16 kHz mono WAV, which every platform can produce identically. */
+async function blobToWav16k(blob){
+  const arrayBuffer = await blob.arrayBuffer();
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  const decodeCtx = new AudioCtx();
+  const decoded = await new Promise((resolve, reject)=>{
+    // callback form is used because older Safari doesn't return a promise here
+    const maybePromise = decodeCtx.decodeAudioData(arrayBuffer, resolve, reject);
+    if(maybePromise && typeof maybePromise.then === 'function') maybePromise.then(resolve, reject);
+  });
+  decodeCtx.close();
+
+  const targetRate = 16000;
+  const frameCount = Math.ceil(decoded.duration * targetRate);
+  const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const offline = new OfflineCtx(1, frameCount, targetRate);
+  const source = offline.createBufferSource();
+  source.buffer = decoded;
+  source.connect(offline.destination);
+  source.start(0);
+  const rendered = await offline.startRendering();
+
+  const samples = rendered.getChannelData(0);
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  const writeStr = (offset, str)=>{ for(let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i)); };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);        // PCM chunk size
+  view.setUint16(20, 1, true);         // format = PCM
+  view.setUint16(22, 1, true);         // mono
+  view.setUint32(24, targetRate, true);
+  view.setUint32(28, targetRate * 2, true); // byte rate
+  view.setUint16(32, 2, true);         // block align
+  view.setUint16(34, 16, true);        // bits per sample
+  writeStr(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+  let offset = 44;
+  for(let i=0;i<samples.length;i++){
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    offset += 2;
+  }
+  return new Blob([buffer], {type: 'audio/wav'});
+}
+
 async function sendForTranscription(blob){
   const startTime = readingSentenceStartTime || Date.now();
   try{
-    const resp = await fetch(WORKER_BASE_URL + '/transcribe', {
-      method: 'POST',
-      headers: {'Content-Type': blob.type || 'audio/webm'},
-      body: blob
-    });
-    const data = await resp.json();
-    if(!resp.ok || data.RecognitionStatus === 'Error'){
-      logDiag('transcribe error: ' + JSON.stringify(data).slice(0,150));
-      toast('تشخیص گفتار با خطا مواجه شد، دوباره امتحان کن');
-      document.getElementById('micLabel').textContent = 'متوجه نشدم، دوباره امتحان کن';
+    let wavBlob;
+    try{
+      wavBlob = await blobToWav16k(blob);
+    }catch(convErr){
+      logDiag('audio conversion failed: ' + convErr.message);
+      toast('تبدیل صدا ممکن نشد، دوباره امتحان کن');
+      document.getElementById('micLabel').textContent = 'مشکل در پردازش صدا، دوباره امتحان کن';
       return;
     }
+
+    const resp = await fetch(WORKER_BASE_URL + '/transcribe', {
+      method: 'POST',
+      headers: {'Content-Type': 'audio/wav; codecs=audio/pcm; samplerate=16000'},
+      body: wavBlob
+    });
+    const data = await resp.json().catch(()=>({}));
+
+    if(!resp.ok){
+      logDiag('transcribe HTTP ' + resp.status + ': ' + JSON.stringify(data).slice(0,150));
+      toast('سرویس تشخیص گفتار خطا داد');
+      document.getElementById('micLabel').textContent = 'خطا در سرویس، دوباره امتحان کن';
+      return;
+    }
+    if(data.RecognitionStatus && data.RecognitionStatus !== 'Success'){
+      logDiag('RecognitionStatus: ' + data.RecognitionStatus);
+      const statusMsg = (data.RecognitionStatus === 'NoMatch' || data.RecognitionStatus === 'InitialSilenceTimeout')
+        ? 'صدایی تشخیص داده نشد. بلندتر و نزدیک‌تر به میکروفون بخوان.'
+        : 'تشخیص انجام نشد (' + data.RecognitionStatus + ')، دوباره امتحان کن';
+      toast(statusMsg);
+      document.getElementById('micLabel').textContent = statusMsg;
+      return;
+    }
+
     const transcript = data.DisplayText || '';
+    if(!transcript){
+      logDiag('empty transcript, raw: ' + JSON.stringify(data).slice(0,150));
+      toast('چیزی شنیده نشد، دوباره امتحان کن');
+      document.getElementById('micLabel').textContent = 'چیزی شنیده نشد، دوباره امتحان کن';
+      return;
+    }
+
     const refWords = readingState.sentences[readingState.index].split(/\s+/);
     const spokenWords = tokenize(transcript);
     const aligned = alignWords(refWords, spokenWords);
