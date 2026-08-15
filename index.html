@@ -48,7 +48,7 @@
   .topbar{display:flex; align-items:center; justify-content:space-between; padding:14px 18px; position:sticky; top:0; background:var(--bg); z-index:10; border-bottom:1px solid transparent;}
   .topbar.scrolled{border-bottom-color:var(--border);}
   .brand{display:flex; align-items:center; gap:10px;}
-  .brand-mark{width:36px; height:36px; border-radius:11px; background:var(--primary); display:flex; align-items:center; justify-content:center; color:#fff; font-family:'Baloo Bhaijaan 2','Vazirmatn',sans-serif; font-weight:700; font-size:16px; border-bottom:3px solid var(--primary-dark);}
+  .brand-mark{width:38px; height:38px; border-radius:11px; display:block; object-fit:cover;}
   .brand-name{font-family:'Noto Naskh Arabic',serif; font-weight:700; font-size:19px; color:var(--primary-dark);}
   .icon-btn{width:38px; height:38px; border-radius:50%; border:1px solid var(--border); background:var(--surface); display:flex; align-items:center; justify-content:center; font-size:18px; color:var(--text-muted);}
   .icon-btn:active{background:var(--surface-2);}
@@ -159,7 +159,7 @@
 
   <div class="topbar" id="topbar">
     <div class="brand">
-      <div class="brand-mark">هم</div>
+      <img class="brand-mark" src="icon-192.png" alt="هم‌خوان">
       <div class="brand-name">هم‌خوان</div>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
@@ -244,6 +244,7 @@
     <div class="card" id="wrongWordsCard" style="display:none;">
       <h3 style="font-size:14px; margin-bottom:10px;">کلماتی که بیشتر نیاز به تمرین دارن:</h3>
       <div id="wrongWordsList" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+      <button class="btn btn-accent btn-block" style="margin-top:14px;" onclick="dictationFromMistakes()">تمرین دیکته با همین کلمات</button>
     </div>
     <button class="btn btn-primary btn-block" onclick="go('home')">بازگشت به صفحه اصلی</button>
   </div>
@@ -383,6 +384,35 @@
     </div>
 
     <div class="settings-group">
+      <h3>روخوانی</h3>
+      <div class="settings-item" style="flex-direction:column; align-items:stretch;">
+        <div style="margin-bottom:8px;">
+          <div class="si-text">سخت‌گیری در تشخیص کلمات</div>
+          <div class="si-sub">اگر اپ زیاد ایراد می‌گیرد آسان‌گیر، و اگر اشتباه‌ها را نادیده می‌گیرد سخت‌گیر را انتخاب کن.</div>
+        </div>
+        <select class="input" id="sensitivitySelect" onchange="setSensitivity(this.value)">
+          <option value="strict">سخت‌گیر — فقط کلمه‌ی دقیقاً درست</option>
+          <option value="balanced">متعادل — تپق کوچک بخشیده می‌شود</option>
+          <option value="lenient">آسان‌گیر — مناسب شروع کار</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <h3>دیکته</h3>
+      <div class="settings-item" style="flex-direction:column; align-items:stretch;">
+        <div style="margin-bottom:8px;">
+          <div class="si-text">صدای گوینده</div>
+          <div class="si-sub">اگر تلفظ یک صدا مبهم بود، صدای دیگر را امتحان کن.</div>
+        </div>
+        <select class="input" id="voiceSelect" onchange="setVoice(this.value)">
+          <option value="dilara">دلارا (زن)</option>
+          <option value="farid">فرید (مرد)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="settings-group">
       <h3>عیب‌یابی</h3>
       <div class="settings-item" style="flex-direction:column; align-items:stretch;">
         <div class="si-text" style="margin-bottom:8px;">وضعیت فنی دستگاه</div>
@@ -410,7 +440,7 @@
    هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
    Single-file offline-capable PWA. Data stored in localStorage.
    ========================================================= */
-const APP_VERSION = "0.4.0";
+const APP_VERSION = "0.5.0";
 const DB_KEY = "hamkhan_db_v1";
 const VERSION_URL = "version.json";
 
@@ -508,15 +538,29 @@ function levenshtein(a,b){
   }
   return prev[n];
 }
+/* Matching sensitivity. There is no single correct threshold — too strict discourages
+   a child who stumbles, too loose stops teaching anything — so the parent can tune it. */
+const SENSITIVITY_LEVELS = {
+  strict:  {minLen: 99, maxDist: 0},  // exact match only
+  balanced:{minLen: 6,  maxDist: 1},  // default
+  lenient: {minLen: 5,  maxDist: 2}
+};
+function currentSensitivity(){
+  const key = (db.settings && db.settings.sensitivity) || 'balanced';
+  return SENSITIVITY_LEVELS[key] || SENSITIVITY_LEVELS.balanced;
+}
 /* A child's pronunciation and the speech engine both introduce small errors, so
-   near-identical words count as correct. Short words need an exact match, since
-   for them a single edit can mean a genuinely different word. */
+   near-identical words may count as correct. But a word that is simply another word
+   plus a suffix ("دوست" vs "دوستی", "کتاب" vs "کتابخانه") is a genuinely different
+   word, however small the edit distance — those never match. */
 function wordsMatch(a,b){
   if(!a || !b) return false;
   if(a===b) return true;
+  if(a.startsWith(b) || b.startsWith(a)) return false;
+  const {minLen, maxDist} = currentSensitivity();
   const maxLen = Math.max(a.length, b.length);
-  if(maxLen <= 3) return false;
-  const tolerance = maxLen <= 6 ? 1 : 2;
+  if(maxLen < minLen) return false;
+  const tolerance = maxLen >= 8 ? maxDist : Math.min(maxDist, 1);
   return levenshtein(a,b) <= tolerance;
 }
 function tokenize(text){
@@ -900,6 +944,17 @@ function startDictation(){
   go('dictation');
   renderDictWord();
 }
+function dictationFromMistakes(){
+  // Strip trailing punctuation so the child is asked to spell the word, not the sentence break
+  const words = [...new Set(readingState.wrongWords)]
+    .map(w => w.replace(/[.،,!؟?؛:"«»()]/g,'').trim())
+    .filter(Boolean);
+  if(!words.length){ toast('کلمه‌ای برای تمرین وجود ندارد'); return; }
+  dictState = { words, index:0, correct:0 };
+  go('dictation');
+  renderDictWord();
+}
+
 function renderDictWord(){
   const {words, index} = dictState;
   document.getElementById('dictInput').value='';
@@ -913,16 +968,29 @@ function renderDictWord(){
   }).join('');
   setTimeout(speakCurrentWord, 300);
 }
+/* Persian script omits short vowels, so the TTS engine occasionally guesses a word's
+   vowels wrong. Entries here override the guess with an explicit IPA pronunciation.
+   Add a word whenever you hear one read incorrectly. */
+const PRONUNCIATION_FIX = {
+  'کویر': 'kæviːɾ'
+};
+
 let currentAudio = null;
 async function speakCurrentWord(){
   const word = dictState.words[dictState.index];
   const btn = document.querySelector('.speaker-btn');
   if(btn) btn.disabled = true;
   try{
+    const payload = {text: word};
+    const key = normalizeWord(word);
+    const fix = PRONUNCIATION_FIX[word] || PRONUNCIATION_FIX[key];
+    if(fix) payload.ipa = fix;
+    if(db.settings && db.settings.voice) payload.voice = db.settings.voice;
+
     const resp = await fetch(WORKER_BASE_URL + '/speak', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({text: word})
+      body: JSON.stringify(payload)
     });
     if(!resp.ok){
       const errData = await resp.json().catch(()=>({}));
@@ -1052,8 +1120,22 @@ async function testMic(){
     logDiag('✘ اجازه‌ی میکروفون رد شد یا در دسترس نیست: ' + e.name);
   }
 }
+function setSensitivity(value){
+  if(!db.settings) db.settings = {};
+  db.settings.sensitivity = value;
+  saveDB();
+  toast('تنظیم ذخیره شد');
+}
+function setVoice(value){
+  if(!db.settings) db.settings = {};
+  db.settings.voice = value;
+  saveDB();
+  toast('صدای گوینده تغییر کرد');
+}
 function renderSettings(){
   document.getElementById('currentVersion').textContent = APP_VERSION;
+  document.getElementById('sensitivitySelect').value = (db.settings && db.settings.sensitivity) || 'balanced';
+  document.getElementById('voiceSelect').value = (db.settings && db.settings.voice) || 'dilara';
   updateConnectivityUI();
   renderDiagInfo();
 }
