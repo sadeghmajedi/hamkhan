@@ -5,36 +5,42 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>همخوان — دستیار روخوانی و دیکته</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#146B62">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#00A98F">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=Baloo+Bhaijaan+2:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root{
-    --bg: #FBF6EC;
+    --bg: #FFF6DC;
     --surface: #FFFFFF;
-    --surface-2: #F3ECDC;
-    --primary: #146B62;
-    --primary-dark: #0C4B45;
-    --primary-light: #E4F1EE;
-    --accent: #D79A22;
-    --accent-light: #FBEDD1;
-    --correct: #2F9E58;
-    --correct-bg: #E7F5EB;
+    --surface-2: #FDEDC8;
+    --primary: #00A98F;
+    --primary-dark: #0B7F6C;
+    --primary-light: #D3F3EA;
+    --accent: #F26430;
+    --accent-dark: #C74A1E;
+    --accent-light: #FFE0D5;
+    --gold: #FFC93C;
+    --gold-dark: #E0A400;
+    --indigo: #2E2A6E;
+    --indigo-light: #EDEBFF;
+    --correct: #0B8B5E;
+    --correct-bg: #C8F0DF;
     --incorrect: #C0392B;
-    --incorrect-bg: #FBEAE8;
+    --incorrect-bg: #FFD5CB;
     --text: #2B2320;
-    --text-muted: #756A5F;
-    --border: #E4D9C4;
-    --radius: 16px;
-    --shadow: 0 2px 10px rgba(43,35,32,0.06), 0 1px 2px rgba(43,35,32,0.08);
-    --shadow-lg: 0 12px 30px rgba(43,35,32,0.12);
+    --text-muted: #7C6F5E;
+    --border: #EDD9AE;
+    --radius: 20px;
+    --shadow: 0 2px 10px rgba(46,42,110,0.07), 0 1px 2px rgba(46,42,110,0.08);
+    --shadow-lg: 0 12px 30px rgba(46,42,110,0.14);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; padding:0; background:var(--bg); color:var(--text); font-family:'Vazirmatn',sans-serif; min-height:100%;}
   body{padding-bottom:env(safe-area-inset-bottom);}
-  h1,h2,h3{font-family:'Noto Naskh Arabic','Vazirmatn',serif; font-weight:700; margin:0; color:var(--primary-dark);}
+  h1,h2,h3{font-family:'Baloo Bhaijaan 2','Vazirmatn',sans-serif; font-weight:700; margin:0; color:var(--indigo);}
   button{font-family:inherit; cursor:pointer;}
   .app{max-width:640px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column;}
 
@@ -42,7 +48,7 @@
   .topbar{display:flex; align-items:center; justify-content:space-between; padding:14px 18px; position:sticky; top:0; background:var(--bg); z-index:10; border-bottom:1px solid transparent;}
   .topbar.scrolled{border-bottom-color:var(--border);}
   .brand{display:flex; align-items:center; gap:10px;}
-  .brand-mark{width:34px; height:34px; border-radius:10px; background:linear-gradient(155deg,var(--primary),var(--primary-dark)); display:flex; align-items:center; justify-content:center; color:#fff; font-family:'Noto Naskh Arabic',serif; font-weight:700; font-size:17px; box-shadow:var(--shadow);}
+  .brand-mark{width:36px; height:36px; border-radius:11px; background:var(--primary); display:flex; align-items:center; justify-content:center; color:#fff; font-family:'Baloo Bhaijaan 2','Vazirmatn',sans-serif; font-weight:700; font-size:16px; border-bottom:3px solid var(--primary-dark);}
   .brand-name{font-family:'Noto Naskh Arabic',serif; font-weight:700; font-size:19px; color:var(--primary-dark);}
   .icon-btn{width:38px; height:38px; border-radius:50%; border:1px solid var(--border); background:var(--surface); display:flex; align-items:center; justify-content:center; font-size:18px; color:var(--text-muted);}
   .icon-btn:active{background:var(--surface-2);}
@@ -55,77 +61,85 @@
   @keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
 
   /* Home */
-  .hero{background:linear-gradient(160deg,var(--primary) 0%, var(--primary-dark) 100%); border-radius:20px; padding:26px 22px; color:#fff; margin:10px 0 22px; box-shadow:var(--shadow-lg); position:relative; overflow:hidden;}
-  .hero::after{content:""; position:absolute; inset-inline-end:-30px; top:-30px; width:130px; height:130px; border-radius:50%; background:rgba(255,255,255,0.08);}
-  .hero h1{color:#fff; font-size:24px; line-height:1.6;}
-  .hero p{color:rgba(255,255,255,0.82); font-size:14px; margin-top:8px; line-height:1.9;}
+  .hero{background:linear-gradient(160deg,var(--primary) 0%, #0B7F6C 100%); border-radius:24px; padding:26px 22px; color:#fff; margin:10px 0 22px; box-shadow:var(--shadow-lg); position:relative; overflow:hidden;}
+  .hero::after{content:""; position:absolute; inset-inline-end:-30px; top:-30px; width:130px; height:130px; border-radius:50%; background:rgba(255,255,255,0.10);}
+  .hero h1{color:#fff; font-size:25px; line-height:1.6;}
+  .hero p{color:rgba(255,255,255,0.9); font-size:14px; margin-top:8px; line-height:1.9;}
   .nav-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
-  .nav-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 16px; text-align:right; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:10px; align-items:flex-start;}
-  .nav-card:active{transform:scale(.98);}
-  .nav-card .emoji{width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px;}
-  .nav-card h3{font-size:15.5px; color:var(--text);}
+  .nav-card{background:var(--surface); border:2px solid var(--border); border-bottom-width:5px; border-radius:var(--radius); padding:18px 16px; text-align:right; display:flex; flex-direction:column; gap:10px; align-items:flex-start; transition:transform .08s ease, border-bottom-width .08s ease;}
+  .nav-card:active{transform:translateY(3px); border-bottom-width:2px;}
+  .nav-card .emoji{width:46px; height:46px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:22px;}
+  .nav-card h3{font-size:16px; color:var(--indigo);}
   .nav-card p{margin:0; font-size:12.5px; color:var(--text-muted); line-height:1.6;}
   .nav-card.wide{grid-column:1 / -1; flex-direction:row; align-items:center; justify-content:space-between;}
 
-  /* Buttons */
-  .btn{border:none; border-radius:12px; padding:13px 20px; font-size:15px; font-weight:600; display:inline-flex; align-items:center; justify-content:center; gap:8px;}
-  .btn-primary{background:var(--primary); color:#fff;}
-  .btn-primary:active{background:var(--primary-dark);}
-  .btn-accent{background:var(--accent); color:#fff;}
-  .btn-ghost{background:var(--surface); color:var(--text); border:1px solid var(--border);}
-  .btn-danger{background:var(--incorrect-bg); color:var(--incorrect); border:1px solid #f0c9c4;}
+  /* Buttons — chunky and raised, they compress when pressed */
+  .btn{border:none; border-radius:16px; padding:14px 20px; font-size:15.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; gap:8px; transition:transform .08s ease, border-bottom-width .08s ease;}
+  .btn-primary{background:var(--primary); color:#fff; border-bottom:4px solid var(--primary-dark);}
+  .btn-accent{background:var(--accent); color:#fff; border-bottom:4px solid var(--accent-dark);}
+  .btn-ghost{background:var(--surface); color:var(--indigo); border:2px solid var(--border); border-bottom-width:4px;}
+  .btn-danger{background:var(--incorrect-bg); color:var(--incorrect); border-bottom:4px solid #E0A093;}
+  .btn:active:not(:disabled){transform:translateY(3px); border-bottom-width:1px;}
   .btn-block{width:100%;}
-  .btn:disabled{opacity:.45;}
+  .btn:disabled{opacity:.4;}
   .back-row{display:flex; align-items:center; gap:10px; margin:10px 0 4px;}
-  .back-row h2{font-size:19px;}
+  .back-row h2{font-size:20px;}
 
   /* Reading screen */
-  .card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); margin-bottom:14px;}
-  .reading-card{border-top:4px solid var(--accent); position:relative;}
-  .reading-card::before{content:"❁"; position:absolute; top:10px; inset-inline-start:14px; color:var(--accent); opacity:.55; font-size:13px;}
-  .sentence-text{font-size:23px; line-height:2.5; text-align:center; padding:14px 6px 6px;}
-  .word{display:inline-block; padding:1px 3px; border-radius:6px; transition:all .2s ease;}
-  .word.correct{background:var(--correct-bg); color:var(--correct);}
+  .card{background:var(--surface); border:2px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow); margin-bottom:14px;}
+  .reading-card{border-top:5px solid var(--gold); position:relative;}
+  .sentence-text{font-size:24px; line-height:2.2; text-align:center; padding:14px 6px 6px;}
+  .word{display:inline-block; line-height:1.5; padding:3px 7px; border-radius:9px; transition:all .2s ease;}
+  .word.correct{background:var(--correct-bg); color:var(--correct); font-weight:600;}
   .word.incorrect{background:var(--incorrect-bg); color:var(--incorrect); text-decoration:line-through;}
   .word.pending{color:var(--text);}
   .progress-row{display:flex; justify-content:center; gap:6px; margin:14px 0 4px;}
-  .dot{width:8px; height:8px; border-radius:50%; background:var(--border);}
+  .dot{width:9px; height:9px; border-radius:50%; background:#EADFC0;}
   .dot.done{background:var(--primary);}
   .dot.current{background:var(--accent);}
+  /* Gentle progress cue: earned stars stay small so reading, not collecting, is the point */
+  .star-row{display:flex; align-items:center; justify-content:center; gap:4px; margin-bottom:2px; font-size:14px;}
+  .star{color:#E3D7B8;}
+  .star.earned{color:var(--gold);}
   .mic-wrap{display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:18px;}
-  .mic-btn{width:76px; height:76px; border-radius:50%; border:none; background:var(--primary); color:#fff; font-size:28px; box-shadow:0 8px 20px rgba(20,107,98,0.35);}
-  .mic-btn.listening{background:var(--incorrect); animation:pulse 1.2s infinite;}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(192,57,43,.35);} 70%{box-shadow:0 0 0 18px rgba(192,57,43,0);} 100%{box-shadow:0 0 0 0 rgba(192,57,43,0);}}
-  .mic-label{font-size:13px; color:var(--text-muted);}
+  .mic-btn{width:86px; height:86px; border-radius:50%; border:none; border-bottom:6px solid var(--accent-dark); background:var(--accent); color:#fff; font-size:32px; transition:transform .08s ease, border-bottom-width .08s ease;}
+  .mic-btn:active{transform:translateY(4px); border-bottom-width:2px;}
+  .mic-btn.listening{background:#E4342B; border-bottom-color:#A72119; animation:pulse 1.2s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(228,52,43,.35);} 70%{box-shadow:0 0 0 20px rgba(228,52,43,0);} 100%{box-shadow:0 0 0 0 rgba(228,52,43,0);}}
+  .mic-label{font-size:13.5px; color:var(--text-muted); text-align:center;}
   .hint{font-size:12.5px; color:var(--text-muted); text-align:center; margin-top:6px;}
   .row-2{display:flex; gap:10px;}
   .row-2 > *{flex:1;}
-  .textarea, .input{width:100%; border:1px solid var(--border); border-radius:12px; padding:12px 14px; font-family:'Vazirmatn'; font-size:15px; background:var(--surface); resize:vertical;}
+  .textarea, .input{width:100%; border:2px solid var(--border); border-radius:14px; padding:12px 14px; font-family:'Vazirmatn'; font-size:15px; background:var(--surface); resize:vertical;}
   .field-label{font-size:13px; color:var(--text-muted); margin-bottom:6px; display:block;}
+
+  /* Dedication bar */
+  .dedication{margin-top:26px; padding:12px 14px; border-radius:999px; background:var(--indigo-light); color:var(--indigo); font-size:12.5px; text-align:center; display:flex; align-items:center; justify-content:center; gap:6px;}
 
   /* Summary */
   .summary-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:14px 0;}
-  .stat-box{background:var(--surface-2); border-radius:12px; padding:14px; text-align:center;}
-  .stat-box .num{font-size:24px; font-weight:800; color:var(--primary-dark); font-family:'Noto Naskh Arabic',serif;}
+  .stat-box{background:var(--surface-2); border-radius:16px; padding:14px; text-align:center;}
+  .stat-box .num{font-size:26px; font-weight:800; color:var(--indigo); font-family:'Baloo Bhaijaan 2','Vazirmatn',sans-serif;}
   .stat-box .lbl{font-size:12px; color:var(--text-muted); margin-top:2px;}
 
   /* Library */
   .level-tabs{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px;}
-  .level-tab{flex-shrink:0; padding:8px 16px; border-radius:999px; border:1px solid var(--border); background:var(--surface); font-size:13px; color:var(--text-muted);}
+  .level-tab{flex-shrink:0; padding:9px 17px; border-radius:999px; border:2px solid var(--border); background:var(--surface); font-size:13.5px; font-weight:600; color:var(--text-muted);}
   .level-tab.active{background:var(--primary); color:#fff; border-color:var(--primary);}
   .text-item{display:flex; justify-content:space-between; align-items:center; padding:14px; background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-bottom:10px;}
   .text-item .ti-title{font-size:14.5px; font-weight:600;}
   .text-item .ti-meta{font-size:11.5px; color:var(--text-muted); margin-top:3px;}
 
   /* Dictation */
-  .word-display{font-size:30px; text-align:center; padding:22px 0 10px; color:var(--primary-dark); font-family:'Noto Naskh Arabic',serif;}
-  .speaker-btn{display:block; margin:0 auto 14px; width:56px; height:56px; border-radius:50%; background:var(--accent-light); border:none; color:var(--accent); font-size:24px;}
+  .word-display{font-size:30px; text-align:center; padding:22px 0 10px; color:var(--indigo); font-family:'Baloo Bhaijaan 2','Vazirmatn',sans-serif;}
+  .speaker-btn{display:block; margin:0 auto 14px; width:66px; height:66px; border-radius:50%; background:var(--gold); border:none; border-bottom:5px solid var(--gold-dark); color:#fff; font-size:28px; transition:transform .08s ease, border-bottom-width .08s ease;}
+  .speaker-btn:active{transform:translateY(3px); border-bottom-width:2px;}
 
   /* Stats */
   canvas{width:100%; height:180px;}
   .history-row{display:flex; justify-content:space-between; align-items:center; padding:12px 4px; border-bottom:1px solid var(--border); font-size:13px;}
   .history-row:last-child{border-bottom:none;}
-  .pill-small{font-size:11px; padding:2px 8px; border-radius:999px; background:var(--primary-light); color:var(--primary-dark);}
+  .pill-small{font-size:11.5px; padding:3px 10px; border-radius:999px; background:var(--primary-light); color:var(--primary-dark); font-weight:600;}
 
   /* Settings */
   .settings-group{margin-bottom:18px;}
@@ -133,7 +147,7 @@
   .settings-item{display:flex; justify-content:space-between; align-items:center; background:var(--surface); border:1px solid var(--border); padding:14px; border-radius:12px; margin-bottom:8px;}
   .settings-item .si-text{font-size:14px;}
   .settings-item .si-sub{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
-  .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--primary-dark); color:#fff; padding:12px 22px; border-radius:999px; font-size:13.5px; box-shadow:var(--shadow-lg); z-index:100; opacity:0; pointer-events:none; transition:opacity .25s ease;}
+  .toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--indigo); color:#fff; padding:12px 22px; border-radius:999px; font-size:13.5px; box-shadow:var(--shadow-lg); z-index:100; opacity:0; pointer-events:none; transition:opacity .25s ease;}
   .toast.show{opacity:1;}
   .empty-state{text-align:center; padding:40px 10px; color:var(--text-muted);}
   .empty-state .ee-icon{font-size:34px; margin-bottom:10px;}
@@ -192,12 +206,14 @@
         <span style="color:var(--text-muted);">‹</span>
       </button>
     </div>
+    <div class="dedication">💛 برای دخترانم تسنیم و یاسمین، با عشق</div>
   </div>
 
   <!-- READING -->
   <div class="screen" id="screen-reading">
     <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>روخوانی</h2></div>
     <div class="card reading-card">
+      <div class="star-row" id="starRow"></div>
       <div class="progress-row" id="sentenceProgress"></div>
       <div class="sentence-text" id="sentenceText"></div>
     </div>
@@ -207,7 +223,7 @@
     </div>
     <div class="hint" id="readingHint"></div>
     <div class="row-2" style="margin-top:22px;">
-      <button class="btn btn-ghost" onclick="repeatSentence()">شنیدن دوباره؟ تکرار جمله</button>
+      <button class="btn btn-ghost" onclick="repeatSentence()">تکرار جمله</button>
       <button class="btn btn-primary" id="nextSentenceBtn" onclick="nextSentence()" disabled>جمله بعد ›</button>
     </div>
   </div>
@@ -394,7 +410,7 @@
    هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
    Single-file offline-capable PWA. Data stored in localStorage.
    ========================================================= */
-const APP_VERSION = "0.3.1";
+const APP_VERSION = "0.4.0";
 const DB_KEY = "hamkhan_db_v1";
 const VERSION_URL = "version.json";
 
@@ -447,12 +463,61 @@ function toast(msg){
 }
 
 /* ---------- Persian text normalization & diff ---------- */
+/* Spoken numbers and digits must be treated as the same word: Azure returns "۱"
+   where the reference text says "یک". */
+const PERSIAN_NUMBER_WORDS = {
+  'صفر':'0','یک':'1','دو':'2','سه':'3','چهار':'4','پنج':'5','شش':'6','شیش':'6',
+  'هفت':'7','هشت':'8','نه':'9','ده':'10','یازده':'11','دوازده':'12','سیزده':'13',
+  'چهارده':'14','پانزده':'15','پونزده':'15','شانزده':'16','شونزده':'16','هفده':'17',
+  'هیفده':'17','هجده':'18','هیجده':'18','نوزده':'19','بیست':'20','سی':'30','چهل':'40',
+  'پنجاه':'50','شصت':'60','هفتاد':'70','هشتاد':'80','نود':'90','صد':'100'
+};
 function normalizeWord(w){
-  return w
-    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g,'') // diacritics
+  let s = (w||'')
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g,'')       // diacritics
+    .replace(/[\u200C\u200D\u200E\u200F]/g,'')               // ZWNJ etc: "می‌کند" === "میکند"
     .replace(/ي/g,'ی').replace(/ك/g,'ک')
-    .replace(/[.،,!؟?؛:"«»()\-]/g,'')
+    .replace(/ة/g,'ه').replace(/ۀ/g,'ه')
+    .replace(/[أإآٱ]/g,'ا')
+    .replace(/[.،,!؟?؛:"«»()\[\]\-–—…]/g,'')
     .trim();
+  // Persian and Arabic-Indic digits -> Latin, so "۱" === "1"
+  s = s.replace(/[\u06F0-\u06F9]/g, d=>String(d.charCodeAt(0)-0x06F0))
+       .replace(/[\u0660-\u0669]/g, d=>String(d.charCodeAt(0)-0x0660));
+  if(PERSIAN_NUMBER_WORDS[s]) s = PERSIAN_NUMBER_WORDS[s];
+  return s;
+}
+function levenshtein(a,b){
+  if(a===b) return 0;
+  const m=a.length, n=b.length;
+  if(!m) return n;
+  if(!n) return m;
+  let prev = new Array(n+1);
+  for(let j=0;j<=n;j++) prev[j]=j;
+  for(let i=1;i<=m;i++){
+    const cur = new Array(n+1);
+    cur[0]=i;
+    for(let j=1;j<=n;j++){
+      cur[j] = Math.min(
+        prev[j]+1,
+        cur[j-1]+1,
+        prev[j-1] + (a[i-1]===b[j-1] ? 0 : 1)
+      );
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+/* A child's pronunciation and the speech engine both introduce small errors, so
+   near-identical words count as correct. Short words need an exact match, since
+   for them a single edit can mean a genuinely different word. */
+function wordsMatch(a,b){
+  if(!a || !b) return false;
+  if(a===b) return true;
+  const maxLen = Math.max(a.length, b.length);
+  if(maxLen <= 3) return false;
+  const tolerance = maxLen <= 6 ? 1 : 2;
+  return levenshtein(a,b) <= tolerance;
 }
 function tokenize(text){
   return text.split(/\s+/).filter(Boolean);
@@ -465,14 +530,14 @@ function alignWords(refWords, spokenWords){
   const dp = Array.from({length:n+1}, ()=>new Array(m+1).fill(0));
   for(let i=1;i<=n;i++){
     for(let j=1;j<=m;j++){
-      if(refNorm[i-1] && refNorm[i-1]===spokenNorm[j-1]) dp[i][j]=dp[i-1][j-1]+1;
+      if(wordsMatch(refNorm[i-1], spokenNorm[j-1])) dp[i][j]=dp[i-1][j-1]+1;
       else dp[i][j]=Math.max(dp[i-1][j], dp[i][j-1]);
     }
   }
   const matched = new Array(n).fill(false);
   let i=n, j=m;
   while(i>0 && j>0){
-    if(refNorm[i-1]===spokenNorm[j-1]){ matched[i-1]=true; i--; j--; }
+    if(wordsMatch(refNorm[i-1], spokenNorm[j-1])){ matched[i-1]=true; i--; j--; }
     else if(dp[i-1][j] >= dp[i][j-1]) i--;
     else j--;
   }
@@ -509,6 +574,12 @@ function renderSentence(){
     let cls='dot'; if(i<index) cls+=' done'; else if(i===index) cls+=' current';
     return `<span class="${cls}"></span>`;
   }).join('');
+  // A small, capped reward cue — enough to feel progress, not enough to become the goal
+  const earned = readingState.results.filter(r=>r && r.correct/Math.max(r.total,1) >= 0.7).length;
+  const starTotal = Math.min(sentences.length, 3);
+  const starsShown = Math.min(earned, starTotal);
+  document.getElementById('starRow').innerHTML =
+    Array.from({length:starTotal}, (_,i)=>`<span class="star${i<starsShown?' earned':''}">★</span>`).join('');
   document.getElementById('micBtn').classList.remove('listening');
 }
 function repeatSentence(){ renderSentence(); }
@@ -655,7 +726,10 @@ async function sendForTranscription(blob){
       return;
     }
 
-    const transcript = data.DisplayText || '';
+    // Prefer Lexical: it is the raw spoken form, without Azure's number-to-digit
+    // conversion and added punctuation, so it aligns far better with the reference text.
+    const best = (data.NBest && data.NBest[0]) || {};
+    const transcript = best.Lexical || best.Display || data.DisplayText || '';
     if(!transcript){
       logDiag('empty transcript, raw: ' + JSON.stringify(data).slice(0,150));
       toast('چیزی شنیده نشد، دوباره امتحان کن');
