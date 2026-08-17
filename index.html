@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=Baloo+Bhaijaan+2:wght@600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <style>
   :root{
     --bg: #FFF6DC;
@@ -162,9 +163,10 @@
       <img class="brand-mark" src="icon-192.png" alt="هم‌خوان">
       <div class="brand-name">هم‌خوان</div>
     </div>
+    <button class="status-pill" id="profileChip" onclick="go('profiles')" style="cursor:pointer;"></button>
     <div style="display:flex; align-items:center; gap:8px;">
       <div class="status-pill" id="statusPill"><span class="status-dot" id="statusDot"></span><span id="statusText">آنلاین</span></div>
-      <button class="icon-btn" onclick="go('settings')">⚙️</button>
+      <button class="icon-btn" onclick="openSettings()">⚙️</button>
     </div>
   </div>
 
@@ -216,6 +218,7 @@
       <div class="star-row" id="starRow"></div>
       <div class="progress-row" id="sentenceProgress"></div>
       <div class="sentence-text" id="sentenceText"></div>
+      <div id="heardText" style="display:none; font-size:12.5px; color:var(--text-muted); text-align:center; background:var(--surface-2); border-radius:10px; padding:8px 10px; margin-top:6px; line-height:1.9;"></div>
     </div>
     <div class="mic-wrap">
       <button class="mic-btn" id="micBtn" onclick="toggleReadingMic()">🎙️</button>
@@ -255,12 +258,12 @@
     <div class="level-tabs" id="levelTabs"></div>
     <div id="textList"></div>
     <div class="card">
-      <h3 style="font-size:14px; margin-bottom:6px;">📄 وارد کردن متن از PDF</h3>
+      <h3 style="font-size:14px; margin-bottom:6px;">📄 وارد کردن متن از فایل</h3>
       <p style="font-size:12px; color:var(--text-muted); margin:0 0 12px; line-height:1.8;">
-        فایل PDF رو انتخاب کن؛ متن آن به‌طور خودکار استخراج می‌شود (کاملاً در همین مرورگر، بدون ارسال به سرور). چون استخراج خودکار همیشه کامل تمیز نیست، بعد از استخراج یک بار متن را مرور و اصلاح کن.
+        فایل PDF، Word یا متنی (txt) رو انتخاب کن؛ متن آن به‌طور خودکار استخراج می‌شود (کاملاً در همین مرورگر، بدون ارسال به سرور). چون استخراج خودکار همیشه کامل تمیز نیست، بعد از استخراج یک بار متن را مرور و اصلاح کن.
       </p>
-      <button class="btn btn-ghost btn-block" onclick="document.getElementById('pdfFile').click()">انتخاب فایل PDF</button>
-      <input type="file" id="pdfFile" accept="application/pdf" onchange="handlePdfUpload(event)">
+      <button class="btn btn-ghost btn-block" onclick="document.getElementById('pdfFile').click()">انتخاب فایل (PDF / Word / txt)</button>
+      <input type="file" id="pdfFile" accept=".pdf,.txt,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onchange="handleFileUpload(event)">
       <div id="pdfStatus" style="font-size:12.5px; color:var(--text-muted); margin-top:10px; text-align:center;"></div>
     </div>
 
@@ -276,7 +279,8 @@
       </select>
       <label class="field-label">متن (هر جمله در یک خط جدید توصیه می‌شود)</label>
       <textarea class="textarea" id="customText" rows="8" placeholder="متن را اینجا بنویس یا کپی کن..."></textarea>
-      <button class="btn btn-accent btn-block" style="margin-top:10px;" onclick="saveCustomText()">افزودن به کتابخانه (یک متن واحد)</button>
+      <button class="btn btn-accent btn-block" id="saveTextBtn" style="margin-top:10px;" onclick="saveCustomText()">افزودن به کتابخانه (یک متن واحد)</button>
+      <button class="btn btn-ghost btn-block" id="cancelEditBtn" style="margin-top:8px; display:none;" onclick="cancelEdit()">انصراف از ویرایش</button>
 
       <div style="border-top:1px solid var(--border); margin:16px 0; padding-top:14px;">
         <label class="field-label">برای کتاب‌های بلند: تقسیم خودکار به چند بخش</label>
@@ -347,9 +351,19 @@
     </div>
   </div>
 
+  <!-- PROFILES -->
+  <div class="screen" id="screen-profiles">
+    <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>کاربران</h2></div>
+    <p style="font-size:12.5px; color:var(--text-muted); line-height:1.9; margin:4px 0 14px;">
+      هر کودک نمرات و تاریخچه‌ی جداگانه‌ی خودش را دارد. کتابخانه‌ی متون بین همه مشترک است.
+    </p>
+    <div id="profileList"></div>
+    <button class="btn btn-accent btn-block" style="margin-top:12px;" onclick="addProfile()">+ افزودن کاربر جدید</button>
+  </div>
+
   <!-- SETTINGS -->
   <div class="screen" id="screen-settings">
-    <div class="back-row"><button class="icon-btn" onclick="go('home')">‹</button><h2>تنظیمات</h2></div>
+    <div class="back-row"><button class="icon-btn" onclick="closeSettings()">‹</button><h2>تنظیمات</h2></div>
 
     <div class="settings-group">
       <h3>وضعیت برنامه</h3>
@@ -440,7 +454,7 @@
    هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
    Single-file offline-capable PWA. Data stored in localStorage.
    ========================================================= */
-const APP_VERSION = "0.5.0";
+const APP_VERSION = "0.6.0";
 const DB_KEY = "hamkhan_db_v1";
 const VERSION_URL = "version.json";
 
@@ -469,7 +483,102 @@ function loadDB(){
   }catch(e){ return defaultDB(); }
 }
 function defaultDB(){
-  return { customTexts: [], sessions: [], settings: {} };
+  return { customTexts: [], sessions: [], settings: {}, profiles: [], activeProfileId: null };
+}
+/* Each child gets their own progress history. Texts stay shared — a book is a book —
+   while sessions and stats are tagged with the profile that produced them. */
+function ensureProfiles(){
+  if(!Array.isArray(db.profiles)) db.profiles = [];
+  if(!db.profiles.length){
+    const id = 'p_' + Date.now();
+    db.profiles = [{id, name:'دانش‌آموز', color:'#00A98F'}];
+    db.activeProfileId = id;
+    // Sessions recorded before profiles existed belong to this first profile
+    (db.sessions||[]).forEach(s=>{ if(!s.profileId) s.profileId = id; });
+    saveDB();
+  }
+  if(!db.activeProfileId || !db.profiles.some(p=>p.id===db.activeProfileId)){
+    db.activeProfileId = db.profiles[0].id;
+    saveDB();
+  }
+}
+function activeProfile(){
+  return db.profiles.find(p=>p.id===db.activeProfileId) || db.profiles[0];
+}
+function profileSessions(){
+  return (db.sessions||[]).filter(s=>s.profileId === db.activeProfileId);
+}
+const PROFILE_COLORS = ['#00A98F','#F26430','#7A5AD6','#E0A400','#2E9BD6'];
+function addProfile(){
+  const name = (prompt('نام کودک؟') || '').trim();
+  if(!name) return;
+  if(db.profiles.length >= 6){ toast('حداکثر ۶ کاربر'); return; }
+  const id = 'p_' + Date.now();
+  db.profiles.push({id, name, color: PROFILE_COLORS[db.profiles.length % PROFILE_COLORS.length]});
+  db.activeProfileId = id;
+  saveDB();
+  renderProfiles();
+  toast(`${name} اضافه شد`);
+}
+function renameProfile(id){
+  const p = db.profiles.find(x=>x.id===id);
+  if(!p) return;
+  const name = (prompt('نام جدید؟', p.name) || '').trim();
+  if(!name) return;
+  p.name = name;
+  saveDB();
+  renderProfiles();
+}
+function deleteProfile(id){
+  const p = db.profiles.find(x=>x.id===id);
+  if(!p) return;
+  if(db.profiles.length === 1){ toast('حداقل یک کاربر باید بماند'); return; }
+  const count = (db.sessions||[]).filter(s=>s.profileId===id).length;
+  if(!confirm(`«${p.name}» و ${count} جلسه‌ی ثبت‌شده‌اش حذف شود؟ این کار قابل بازگشت نیست.`)) return;
+  db.profiles = db.profiles.filter(x=>x.id!==id);
+  db.sessions = (db.sessions||[]).filter(s=>s.profileId!==id);
+  if(db.activeProfileId === id) db.activeProfileId = db.profiles[0].id;
+  saveDB();
+  renderProfiles();
+  toast('کاربر حذف شد');
+}
+function switchProfile(id){
+  db.activeProfileId = id;
+  saveDB();
+  updateProfileChip();
+  go('home');
+  toast(`سلام ${activeProfile().name}!`);
+}
+function renderProfiles(){
+  ensureProfiles();
+  updateProfileChip();
+  const list = document.getElementById('profileList');
+  if(!list) return;
+  list.innerHTML = db.profiles.map(p=>{
+    const isActive = p.id === db.activeProfileId;
+    const count = (db.sessions||[]).filter(s=>s.profileId===p.id).length;
+    return `
+      <div class="text-item" style="${isActive?'border-color:'+p.color+'; border-width:3px;':''}">
+        <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+          <div style="width:38px; height:38px; border-radius:50%; background:${p.color}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0;">${escapeHtml(p.name.charAt(0))}</div>
+          <div style="min-width:0;">
+            <div class="ti-title">${escapeHtml(p.name)}${isActive?' ✓':''}</div>
+            <div class="ti-meta">${count} جلسه ثبت‌شده</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="icon-btn" title="تغییر نام" onclick="renameProfile('${p.id}')">✏️</button>
+          <button class="icon-btn" title="حذف" onclick="deleteProfile('${p.id}')">🗑️</button>
+          ${isActive?'':`<button class="btn btn-primary" style="padding:10px 14px;" onclick="switchProfile('${p.id}')">انتخاب</button>`}
+        </div>
+      </div>`;
+  }).join('');
+}
+function updateProfileChip(){
+  const chip = document.getElementById('profileChip');
+  if(!chip || !db.profiles || !db.profiles.length) return;
+  const p = activeProfile();
+  chip.innerHTML = `<span style="width:20px; height:20px; border-radius:50%; background:${p.color}; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;">${escapeHtml(p.name.charAt(0))}</span> ${escapeHtml(p.name)}`;
 }
 function saveDB(){ localStorage.setItem(DB_KEY, JSON.stringify(db)); }
 let db = loadDB();
@@ -480,8 +589,24 @@ function go(screenName){
   document.getElementById('screen-'+screenName).classList.add('active');
   window.scrollTo(0,0);
   if(screenName==='library') renderLibrary();
+  if(screenName==='profiles') renderProfiles();
   if(screenName==='stats') renderStats();
   if(screenName==='settings') renderSettings();
+}
+
+/* Settings can be opened mid-activity (e.g. to change the voice during dictation),
+   so returning must land back where you were rather than resetting to home. */
+let settingsReturnTo = 'home';
+function currentScreenName(){
+  const el = document.querySelector('.screen.active');
+  return el ? el.id.replace('screen-','') : 'home';
+}
+function openSettings(){
+  settingsReturnTo = currentScreenName();
+  go('settings');
+}
+function closeSettings(){
+  go(settingsReturnTo === 'settings' ? 'home' : settingsReturnTo);
 }
 
 /* ---------- Toast ---------- */
@@ -539,11 +664,12 @@ function levenshtein(a,b){
   return prev[n];
 }
 /* Matching sensitivity. There is no single correct threshold — too strict discourages
-   a child who stumbles, too loose stops teaching anything — so the parent can tune it. */
+   a child who stumbles, too loose stops teaching anything — so the parent can tune it.
+   minScore is the Azure pronunciation accuracy (0-100) a word must reach. */
 const SENSITIVITY_LEVELS = {
-  strict:  {minLen: 99, maxDist: 0},  // exact match only
-  balanced:{minLen: 6,  maxDist: 1},  // default
-  lenient: {minLen: 5,  maxDist: 2}
+  strict:  {minLen: 99, maxDist: 0, minScore: 75},  // exact match only
+  balanced:{minLen: 6,  maxDist: 1, minScore: 55},  // default
+  lenient: {minLen: 5,  maxDist: 2, minScore: 35}
 };
 function currentSensitivity(){
   const key = (db.settings && db.settings.sensitivity) || 'balanced';
@@ -588,6 +714,67 @@ function alignWords(refWords, spokenWords){
   return refWords.map((w,idx)=>({word:w, status: matched[idx] ? 'correct' : 'incorrect'}));
 }
 
+/* Azure's language model tends to "repair" what it heard into the expected sentence,
+   so comparing text against text alone lets wrong pronunciations slip through. The
+   pronunciation assessment scores the actual audio against the reference wording, which
+   catches those. Microsoft notes the reverse gap too: assessment judges how words sound,
+   not whether the right word was said, so a substituted word can still score well.
+   Using both together covers each one's blind spot. */
+function gradeAgainstReference(refWords, data){
+  const best = (data.NBest && data.NBest[0]) || {};
+  const transcript = best.Lexical || best.Display || data.DisplayText || '';
+  const lexical = alignWords(refWords, tokenize(transcript));
+
+  const assessedAll = best.Words || [];
+  // Insertions are extra words the child added; they don't correspond to reference words
+  const assessed = assessedAll.filter(w => readErrorType(w) !== 'Insertion');
+  if(!assessed.length){
+    return {aligned: lexical, transcript, usedAssessment:false};
+  }
+
+  const minScore = currentSensitivity().minScore;
+  const aligned = refWords.map((w, i) => {
+    let status = lexical[i] ? lexical[i].status : 'incorrect';
+    const a = assessed[i];
+    if(a){
+      const err = readErrorType(a);
+      const score = readAccuracy(a);
+      if(err === 'Omission' || err === 'Mispronunciation') status = 'incorrect';
+      else if(score !== null && score < minScore) status = 'incorrect';
+    }
+    return {word: w, status};
+  });
+  return {aligned, transcript, usedAssessment:true};
+}
+function readErrorType(w){
+  if(!w) return 'None';
+  return (w.PronunciationAssessment && w.PronunciationAssessment.ErrorType) || w.ErrorType || 'None';
+}
+function readAccuracy(w){
+  if(!w) return null;
+  const v = (w.PronunciationAssessment && w.PronunciationAssessment.AccuracyScore);
+  if(typeof v === 'number') return v;
+  if(typeof w.AccuracyScore === 'number') return w.AccuracyScore;
+  return null;
+}
+
+/* btoa alone breaks on Persian text, so encode the UTF-8 bytes first */
+function b64Utf8(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  bytes.forEach(b => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+}
+/* Showing what the engine actually heard is the only way to tell a child's
+   mistake apart from a misrecognition — without it, both just look like red words. */
+function showHeardText(transcript, usedAssessment){
+  const el = document.getElementById('heardText');
+  if(!el) return;
+  el.style.display = 'block';
+  el.innerHTML = '<span style="opacity:.7;">شنیده شد:</span> ' + (transcript || '—') +
+    (usedAssessment ? '' : ' <span style="opacity:.6;">(بدون ارزیابی تلفظ)</span>');
+}
+
 /* ---------- Speech Recognition (via Cloudflare Worker -> Azure Speech, works on iOS + Windows) ---------- */
 const WORKER_BASE_URL = 'https://hamkhan-backend.sadeghmajedi.workers.dev';
 let mediaRecorder = null;
@@ -611,6 +798,8 @@ function renderSentence(){
   const {sentences, index} = readingState;
   document.getElementById('sentenceText').innerHTML = sentences[index].split(/\s+/).map(w=>`<span class="word pending">${w}</span>`).join(' ');
   document.getElementById('nextSentenceBtn').disabled = true;
+  const heard = document.getElementById('heardText');
+  if(heard) heard.style.display = 'none';
   document.getElementById('micLabel').textContent = 'برای شروع، دکمه رو بزن، جمله رو بخون، بعد دوباره بزن';
   document.getElementById('readingHint').textContent = (window.MediaRecorder) ? '' : 'مرورگر شما از ضبط صدا پشتیبانی نمی‌کند.';
   const prog = document.getElementById('sentenceProgress');
@@ -747,9 +936,13 @@ async function sendForTranscription(blob){
       return;
     }
 
+    const refWords = readingState.sentences[readingState.index].split(/\s+/);
     const resp = await fetch(WORKER_BASE_URL + '/transcribe', {
       method: 'POST',
-      headers: {'Content-Type': 'audio/wav; codecs=audio/pcm; samplerate=16000'},
+      headers: {
+        'Content-Type': 'audio/wav; codecs=audio/pcm; samplerate=16000',
+        'X-Reference-Text': b64Utf8(readingState.sentences[readingState.index])
+      },
       body: wavBlob
     });
     const data = await resp.json().catch(()=>({}));
@@ -773,18 +966,18 @@ async function sendForTranscription(blob){
     // Prefer Lexical: it is the raw spoken form, without Azure's number-to-digit
     // conversion and added punctuation, so it aligns far better with the reference text.
     const best = (data.NBest && data.NBest[0]) || {};
-    const transcript = best.Lexical || best.Display || data.DisplayText || '';
-    if(!transcript){
+    const rawTranscript = best.Lexical || best.Display || data.DisplayText || '';
+    if(!rawTranscript){
       logDiag('empty transcript, raw: ' + JSON.stringify(data).slice(0,150));
       toast('چیزی شنیده نشد، دوباره امتحان کن');
       document.getElementById('micLabel').textContent = 'چیزی شنیده نشد، دوباره امتحان کن';
       return;
     }
 
-    const refWords = readingState.sentences[readingState.index].split(/\s+/);
-    const spokenWords = tokenize(transcript);
-    const aligned = alignWords(refWords, spokenWords);
+    const graded = gradeAgainstReference(refWords, data);
+    const aligned = graded.aligned;
     document.getElementById('sentenceText').innerHTML = aligned.map(a=>`<span class="word ${a.status}">${a.word}</span>`).join(' ');
+    showHeardText(graded.transcript, graded.usedAssessment);
     const elapsedMin = (Date.now()-startTime)/60000;
     const correctCount = aligned.filter(a=>a.status==='correct').length;
     readingState.wordsCorrect += correctCount;
@@ -825,7 +1018,8 @@ function finishReading(){
 
   db.sessions.push({
     type:'reading', date:new Date().toISOString(), accuracy, wpm,
-    correct:readingState.wordsCorrect, total:readingState.wordsTotal
+    correct:readingState.wordsCorrect, total:readingState.wordsTotal,
+    profileId: db.activeProfileId
   });
   saveDB();
   go('readingSummary');
@@ -840,11 +1034,56 @@ function renderLibrary(){
     `<button class="level-tab ${lv.k===currentLevel?'active':''}" onclick="setLevel('${lv.k}')">${lv.l}</button>`
   ).join('');
   const items = allTexts().filter(t=>t.level===currentLevel);
-  document.getElementById('textList').innerHTML = items.length ? items.map(t=>`
+  document.getElementById('textList').innerHTML = items.length ? items.map(t=>{
+    const isCustom = t.id.startsWith('custom_');
+    const payload = encodeURIComponent(JSON.stringify(t));
+    return `
     <div class="text-item">
-      <div><div class="ti-title">${t.title}</div><div class="ti-meta">${t.body.split('\n').filter(Boolean).length} جمله</div></div>
-      <button class="btn btn-primary" onclick='openReadingWithText(${JSON.stringify(t).replace(/'/g,"&#39;")})'>خواندن</button>
-    </div>`).join('') : `<div class="empty-state"><div class="ee-icon">📭</div>متنی برای این سطح سنی وجود ندارد</div>`;
+      <div style="flex:1; min-width:0;">
+        <div class="ti-title">${escapeHtml(t.title)}</div>
+        <div class="ti-meta">${t.body.split('\n').filter(Boolean).length} جمله${isCustom?' · متن شما':''}</div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        ${isCustom ? `
+          <button class="icon-btn" title="ویرایش" onclick="editText('${t.id}')">✏️</button>
+          <button class="icon-btn" title="حذف" onclick="deleteText('${t.id}')">🗑️</button>` : ''}
+        <button class="btn btn-primary" style="padding:10px 14px;" onclick='openReadingWithText(JSON.parse(decodeURIComponent("${payload}")))'>خواندن</button>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty-state"><div class="ee-icon">📭</div>متنی برای این سطح سنی وجود ندارد</div>`;
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+let editingTextId = null;
+function editText(id){
+  const t = db.customTexts.find(x=>x.id===id);
+  if(!t){ toast('متن پیدا نشد'); return; }
+  editingTextId = id;
+  document.getElementById('customTitle').value = t.title;
+  document.getElementById('customLevel').value = t.level;
+  document.getElementById('customText').value = t.body;
+  document.getElementById('saveTextBtn').textContent = 'ذخیره تغییرات';
+  document.getElementById('cancelEditBtn').style.display = 'block';
+  document.getElementById('customTitle').scrollIntoView({behavior:'smooth', block:'center'});
+  toast('در حال ویرایش — تغییرات را بده و ذخیره کن');
+}
+function cancelEdit(){
+  editingTextId = null;
+  document.getElementById('customTitle').value = '';
+  document.getElementById('customText').value = '';
+  document.getElementById('saveTextBtn').textContent = 'افزودن به کتابخانه (یک متن واحد)';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+}
+function deleteText(id){
+  const t = db.customTexts.find(x=>x.id===id);
+  if(!t) return;
+  if(!confirm(`متن «${t.title}» حذف شود؟ این کار قابل بازگشت نیست.`)) return;
+  db.customTexts = db.customTexts.filter(x=>x.id!==id);
+  saveDB();
+  if(editingTextId === id) cancelEdit();
+  toast('متن حذف شد');
+  renderLibrary();
 }
 function setLevel(l){ currentLevel = l; renderLibrary(); }
 
@@ -859,37 +1098,60 @@ function autoSplitSentences(rawText){
   text = text.replace(/([.!؟?])\s+/g, '$1\n');
   return text.split('\n').map(s=>s.trim()).filter(Boolean).join('\n');
 }
-async function handlePdfUpload(event){
+async function handleFileUpload(event){
   const file = event.target.files[0];
   if(!file) return;
   const statusEl = document.getElementById('pdfStatus');
-  if(!window.pdfjsLib){
-    statusEl.textContent = 'کتابخانه‌ی PDF بارگذاری نشد. اتصال اینترنت را بررسی کن و دوباره امتحان کن.';
-    return;
-  }
+  const name = file.name.toLowerCase();
   statusEl.textContent = 'در حال خواندن فایل...';
   try{
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-    let fullText = '';
-    for(let i=1; i<=pdf.numPages; i++){
-      statusEl.textContent = `در حال استخراج صفحه ${i} از ${pdf.numPages}...`;
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = content.items.map(it=>it.str).join(' ');
-      fullText += pageText + '\n';
+    let raw = '';
+    if(name.endsWith('.pdf')){
+      raw = await extractFromPdf(file, statusEl);
+    } else if(name.endsWith('.docx')){
+      raw = await extractFromDocx(file);
+    } else if(name.endsWith('.txt')){
+      raw = await file.text();
+    } else {
+      statusEl.textContent = 'این نوع فایل پشتیبانی نمی‌شود. فقط PDF، Word (docx) و txt.';
+      event.target.value = '';
+      return;
     }
-    const cleaned = autoSplitSentences(fullText);
+    const cleaned = autoSplitSentences(raw);
+    if(!cleaned){
+      statusEl.textContent = 'متنی در این فایل پیدا نشد. اگر PDF اسکن‌شده (تصویری) است، نیاز به OCR دارد.';
+      event.target.value = '';
+      return;
+    }
     document.getElementById('customText').value = cleaned;
-    document.getElementById('customTitle').value = file.name.replace(/\.pdf$/i, '');
+    document.getElementById('customTitle').value = file.name.replace(/\.(pdf|docx|txt)$/i, '');
     const sentenceCount = cleaned.split('\n').filter(Boolean).length;
-    statusEl.textContent = `✔ استخراج انجام شد: ${pdf.numPages} صفحه، حدود ${sentenceCount} جمله. لطفاً متن پایین را مرور و در صورت نیاز اصلاح کن.`;
+    statusEl.textContent = `✔ استخراج انجام شد: حدود ${sentenceCount} جمله. لطفاً متن پایین را مرور و در صورت نیاز اصلاح کن.`;
     toast('متن استخراج شد — لطفاً پیش از افزودن مرور کن');
   }catch(err){
-    statusEl.textContent = 'استخراج متن ناموفق بود. ممکن است PDF اسکن‌شده (تصویری) باشد که نیاز به OCR دارد.';
-    logDiag('PDF extraction error: ' + err.message);
+    statusEl.textContent = 'استخراج متن ناموفق بود: ' + err.message;
+    logDiag('file extraction error: ' + err.message);
   }
   event.target.value = '';
+}
+async function extractFromPdf(file, statusEl){
+  if(!window.pdfjsLib) throw new Error('کتابخانه PDF بارگذاری نشد');
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+  let fullText = '';
+  for(let i=1; i<=pdf.numPages; i++){
+    if(statusEl) statusEl.textContent = `در حال استخراج صفحه ${i} از ${pdf.numPages}...`;
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    fullText += content.items.map(it=>it.str).join(' ') + '\n';
+  }
+  return fullText;
+}
+async function extractFromDocx(file){
+  if(!window.mammoth) throw new Error('کتابخانه Word بارگذاری نشد');
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({arrayBuffer});
+  return result.value || '';
 }
 function splitIntoChapters(){
   const title = document.getElementById('customTitle').value.trim();
@@ -920,11 +1182,19 @@ function saveCustomText(){
   const level = document.getElementById('customLevel').value;
   const body = document.getElementById('customText').value.trim();
   if(!title || !body){ toast('لطفاً عنوان و متن را وارد کن'); return; }
-  db.customTexts.push({id:'custom_'+Date.now(), level, title, body});
-  saveDB();
-  document.getElementById('customTitle').value='';
-  document.getElementById('customText').value='';
-  toast('متن اضافه شد');
+  if(editingTextId){
+    const t = db.customTexts.find(x=>x.id===editingTextId);
+    if(t){ t.title = title; t.level = level; t.body = body; }
+    saveDB();
+    cancelEdit();
+    toast('تغییرات ذخیره شد');
+  } else {
+    db.customTexts.push({id:'custom_'+Date.now(), level, title, body});
+    saveDB();
+    document.getElementById('customTitle').value='';
+    document.getElementById('customText').value='';
+    toast('متن اضافه شد');
+  }
   renderLibrary();
 }
 
@@ -1033,14 +1303,14 @@ function finishDictation(){
   const accuracy = Math.round((dictState.correct/dictState.words.length)*100);
   document.getElementById('dsumAccuracy').textContent = accuracy+'%';
   document.getElementById('dsumCorrect').textContent = dictState.correct+' از '+dictState.words.length;
-  db.sessions.push({type:'dictation', date:new Date().toISOString(), accuracy, correct:dictState.correct, total:dictState.words.length});
+  db.sessions.push({type:'dictation', date:new Date().toISOString(), accuracy, correct:dictState.correct, total:dictState.words.length, profileId: db.activeProfileId});
   saveDB();
   go('dictationSummary');
 }
 
 /* ---------- Stats ---------- */
 function renderStats(){
-  const sessions = [...db.sessions].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const sessions = [...profileSessions()].sort((a,b)=>new Date(a.date)-new Date(b.date));
   const canvas = document.getElementById('chartCanvas');
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
@@ -1074,7 +1344,7 @@ function renderStats(){
   }
 
   const list = document.getElementById('historyList');
-  const recent = [...db.sessions].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,20);
+  const recent = [...profileSessions()].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,20);
   list.innerHTML = recent.length ? recent.map(s=>{
     const d = new Date(s.date);
     const dateStr = d.toLocaleDateString('fa-IR');
@@ -1210,6 +1480,8 @@ function clearAllData(){
 }
 
 /* ---------- Init ---------- */
+ensureProfiles();
+updateProfileChip();
 updateConnectivityUI();
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
