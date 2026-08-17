@@ -226,6 +226,7 @@
     </div>
     <div class="hint" id="readingHint"></div>
     <div class="row-2" style="margin-top:22px;">
+      <button class="btn btn-ghost" id="playRecordingBtn" style="display:none;" onclick="playRecording()">🔊 پخش صدا</button>
       <button class="btn btn-ghost" onclick="repeatSentence()">تکرار جمله</button>
       <button class="btn btn-primary" id="nextSentenceBtn" onclick="nextSentence()" disabled>جمله بعد ›</button>
     </div>
@@ -454,7 +455,7 @@
    هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
    Single-file offline-capable PWA. Data stored in localStorage.
    ========================================================= */
-const APP_VERSION = "0.6.0";
+const APP_VERSION = "0.6.1";
 const DB_KEY = "hamkhan_db_v1";
 const VERSION_URL = "version.json";
 
@@ -663,6 +664,19 @@ function levenshtein(a,b){
   }
   return prev[n];
 }
+/* A Persian keyboard offers both "ی/ي" and "ک/ك". Mixed spellings look identical to a
+   reader but do not match Azure's fa-IR lexicon, which quietly depresses pronunciation
+   scores. Normalizing the wording at the source fixes it for both display and scoring. */
+function normalizePersianText(text){
+  return String(text || '')
+    .replace(/ي/g,'ی')
+    .replace(/ك/g,'ک')
+    .replace(/ة/g,'ه').replace(/ۀ/g,'هٔ')
+    .replace(/[أإٱ]/g,'ا')
+    .replace(/[\u064B-\u0652]/g,'')   // short-vowel marks
+    .replace(/\u200F|\u200E/g,'');    // stray direction marks
+}
+
 /* Matching sensitivity. There is no single correct threshold — too strict discourages
    a child who stumbles, too loose stops teaching anything — so the parent can tune it.
    minScore is the Azure pronunciation accuracy (0-100) a word must reach. */
@@ -729,22 +743,25 @@ function gradeAgainstReference(refWords, data){
   // Insertions are extra words the child added; they don't correspond to reference words
   const assessed = assessedAll.filter(w => readErrorType(w) !== 'Insertion');
   if(!assessed.length){
-    return {aligned: lexical, transcript, usedAssessment:false};
+    return {aligned: lexical, transcript, usedAssessment:false, scores: refWords.map(()=>null)};
   }
 
   const minScore = currentSensitivity().minScore;
+  const scores = [];
   const aligned = refWords.map((w, i) => {
     let status = lexical[i] ? lexical[i].status : 'incorrect';
     const a = assessed[i];
+    let score = null, err = 'None';
     if(a){
-      const err = readErrorType(a);
-      const score = readAccuracy(a);
+      err = readErrorType(a);
+      score = readAccuracy(a);
       if(err === 'Omission' || err === 'Mispronunciation') status = 'incorrect';
       else if(score !== null && score < minScore) status = 'incorrect';
     }
+    scores.push({score, err});
     return {word: w, status};
   });
-  return {aligned, transcript, usedAssessment:true};
+  return {aligned, transcript, usedAssessment:true, scores};
 }
 function readErrorType(w){
   if(!w) return 'None';
@@ -765,14 +782,67 @@ function b64Utf8(str){
   bytes.forEach(b => { bin += String.fromCharCode(b); });
   return btoa(bin);
 }
-/* Showing what the engine actually heard is the only way to tell a child's
-   mistake apart from a misrecognition — without it, both just look like red words. */
+/* The recognized text is NOT a faithful record of what was said: Azure's language model
+   snaps it toward the expected sentence, so a child who says "دست" for "دوست" still shows
+   "دوست" here. The pronunciation score is the honest signal, and playing the recording back
+   is the only way to settle "was it the child or the engine?" — so we offer both. */
 function showHeardText(transcript, usedAssessment){
   const el = document.getElementById('heardText');
   if(!el) return;
+  const idx = readingState.index;
+  const aligned = readingState.aligned[idx] || [];
+  const scores = readingState.scores[idx] || [];
+
+  const flagged = aligned.map((a,i)=>({a, s:scores[i]})).filter(x=>x.a.status==='incorrect');
+  let detail = '';
+  if(flagged.length && usedAssessment){
+    detail = '<div style="margin-top:6px;">' + flagged.map(x=>{
+      const sc = x.s && typeof x.s.score === 'number' ? Math.round(x.s.score) : null;
+      const label = x.s && x.s.err === 'Omission' ? 'خوانده نشد'
+                  : sc !== null ? 'نمره تلفظ: ' + sc
+                  : 'نامشخص';
+      return `<span style="display:inline-block; background:var(--incorrect-bg); color:var(--incorrect); border-radius:8px; padding:2px 8px; margin:2px;">${escapeHtml(x.a.word)} — ${label}</span>`;
+    }).join('') + '</div>';
+  }
+
   el.style.display = 'block';
-  el.innerHTML = '<span style="opacity:.7;">شنیده شد:</span> ' + (transcript || '—') +
-    (usedAssessment ? '' : ' <span style="opacity:.6;">(بدون ارزیابی تلفظ)</span>');
+  el.innerHTML =
+    `<div><span style="opacity:.7;">متن تشخیص‌داده‌شده:</span> ${escapeHtml(transcript || '—')}</div>` +
+    `<div style="opacity:.6; font-size:11.5px; margin-top:3px;">این متن ممکن است توسط موتور به متن اصلی نزدیک شده باشد؛ برای داوری دقیق، صدای ضبط‌شده را گوش کن.</div>` +
+    detail +
+    (flagged.length ? `<div style="opacity:.7; font-size:11.5px; margin-top:6px;">اگر مطمئنی درست خوانده شد، روی کلمه‌ی قرمز بزن تا درست حساب شود.</div>` : '');
+
+  const playBtn = document.getElementById('playRecordingBtn');
+  if(playBtn) playBtn.style.display = readingState.lastAudioUrl ? 'inline-flex' : 'none';
+}
+function playRecording(){
+  if(!readingState.lastAudioUrl){ toast('صدایی ضبط نشده'); return; }
+  const audio = new Audio(readingState.lastAudioUrl);
+  audio.play().catch(err=>logDiag('playback error: ' + err.message));
+}
+/* Manual override: the engine is not always right, and a child should not be told they
+   read a word wrong when they did not. */
+function toggleWordStatus(i){
+  const idx = readingState.index;
+  const aligned = readingState.aligned[idx];
+  if(!aligned || !aligned[i]) return;
+  aligned[i].status = aligned[i].status === 'incorrect' ? 'correct' : 'incorrect';
+  if(aligned[i].status === 'correct'){
+    const sc = readingState.scores[idx] && readingState.scores[idx][i];
+    if(sc) sc.overridden = true;
+  }
+  renderGradedSentence();
+  toast(aligned[i].status === 'correct' ? 'درست حساب شد' : 'اشتباه حساب شد');
+}
+function renderGradedSentence(){
+  const idx = readingState.index;
+  const aligned = readingState.aligned[idx];
+  if(!aligned) return;
+  document.getElementById('sentenceText').innerHTML = aligned.map((a,i)=>
+    `<span class="word ${a.status}" onclick="toggleWordStatus(${i})" style="cursor:pointer;">${escapeHtml(a.word)}</span>`
+  ).join(' ');
+  const scores = readingState.scores[idx] || [];
+  showHeardText(readingState.lastTranscript || '', scores.some(s=>s && s.score !== null));
 }
 
 /* ---------- Speech Recognition (via Cloudflare Worker -> Azure Speech, works on iOS + Windows) ---------- */
@@ -782,7 +852,7 @@ let recordedChunks = [];
 let micStream = null;
 
 /* ---------- Reading flow state ---------- */
-let readingState = { sentences:[], index:0, results:[], wpmStart:0, wordsCorrect:0, wordsTotal:0, wrongWords:[] };
+let readingState = { sentences:[], index:0, results:[], aligned:[], scores:[], lastAudioUrl:null };
 
 function startReadingFlow(){
   // If no text picked yet, send to library to choose one; default to first level-7 text for quick start
@@ -790,7 +860,8 @@ function startReadingFlow(){
 }
 function openReadingWithText(textObj){
   const sentences = textObj.body.split('\n').map(s=>s.trim()).filter(Boolean);
-  readingState = { sentences, index:0, results: sentences.map(()=>null), wordsCorrect:0, wordsTotal:0, wrongWords:[] };
+  readingState = { sentences, index:0, results: sentences.map(()=>null),
+                   aligned: sentences.map(()=>null), scores: sentences.map(()=>null), lastAudioUrl:null };
   go('reading');
   renderSentence();
 }
@@ -864,6 +935,9 @@ async function toggleReadingMic(){
     micStream.getTracks().forEach(t=>t.stop());
     document.getElementById('micLabel').textContent = 'در حال پردازش...';
     const blob = new Blob(recordedChunks, {type: mediaRecorder.mimeType || 'audio/webm'});
+    // Keep the recording so the parent can listen back and judge for themselves
+    if(readingState.lastAudioUrl) URL.revokeObjectURL(readingState.lastAudioUrl);
+    readingState.lastAudioUrl = URL.createObjectURL(blob);
     await sendForTranscription(blob);
   };
 
@@ -941,7 +1015,7 @@ async function sendForTranscription(blob){
       method: 'POST',
       headers: {
         'Content-Type': 'audio/wav; codecs=audio/pcm; samplerate=16000',
-        'X-Reference-Text': b64Utf8(readingState.sentences[readingState.index])
+        'X-Reference-Text': b64Utf8(normalizePersianText(readingState.sentences[readingState.index]))
       },
       body: wavBlob
     });
@@ -976,14 +1050,14 @@ async function sendForTranscription(blob){
 
     const graded = gradeAgainstReference(refWords, data);
     const aligned = graded.aligned;
-    document.getElementById('sentenceText').innerHTML = aligned.map(a=>`<span class="word ${a.status}">${a.word}</span>`).join(' ');
-    showHeardText(graded.transcript, graded.usedAssessment);
+    readingState.lastTranscript = graded.transcript;
     const elapsedMin = (Date.now()-startTime)/60000;
-    const correctCount = aligned.filter(a=>a.status==='correct').length;
-    readingState.wordsCorrect += correctCount;
-    readingState.wordsTotal += aligned.length;
-    aligned.filter(a=>a.status==='incorrect').forEach(a=>readingState.wrongWords.push(a.word));
-    readingState.results[readingState.index] = {correct:correctCount, total:aligned.length, minutes: Math.max(elapsedMin,0.05)};
+    // Stored per sentence rather than accumulated, so re-reading a sentence replaces
+    // its result instead of inflating the totals
+    readingState.aligned[readingState.index] = aligned;
+    readingState.scores[readingState.index] = graded.scores;
+    readingState.results[readingState.index] = {minutes: Math.max(elapsedMin,0.05)};
+    renderGradedSentence();
     document.getElementById('nextSentenceBtn').disabled = false;
     document.getElementById('micLabel').textContent = 'خوب بود! دکمه بعدی را بزن یا دوباره بخوان';
   }catch(err){
@@ -1004,21 +1078,41 @@ function nextSentence(){
 }
 function finishReading(){
   const totalMinutes = readingState.results.filter(Boolean).reduce((s,r)=>s+r.minutes,0) || 0.1;
-  const wpm = Math.round(readingState.wordsTotal / totalMinutes) || 0;
-  const accuracy = readingState.wordsTotal ? Math.round((readingState.wordsCorrect/readingState.wordsTotal)*100) : 0;
+  // Totals derived from the final state of each sentence, so re-reads and manual
+  // corrections are both reflected exactly once
+  let wordsCorrect = 0, wordsTotal = 0;
+  const wrongWords = [];
+  readingState.aligned.forEach(aligned=>{
+    if(!aligned) return;
+    aligned.forEach(a=>{
+      wordsTotal++;
+      if(a.status === 'correct') wordsCorrect++;
+      else wrongWords.push(a.word);
+    });
+  });
+  const wpm = Math.round(wordsTotal / totalMinutes) || 0;
+  const accuracy = wordsTotal ? Math.round((wordsCorrect/wordsTotal)*100) : 0;
   document.getElementById('sumAccuracy').textContent = accuracy+'%';
   document.getElementById('sumWpm').textContent = wpm;
-  document.getElementById('sumCorrect').textContent = readingState.wordsCorrect;
-  document.getElementById('sumWrong').textContent = readingState.wordsTotal - readingState.wordsCorrect;
+  document.getElementById('sumCorrect').textContent = wordsCorrect;
+  document.getElementById('sumWrong').textContent = wordsTotal - wordsCorrect;
+
   const wwCard = document.getElementById('wrongWordsCard');
-  if(readingState.wrongWords.length){
+  const unique = [...new Set(wrongWords.map(w=>w.replace(/[.،,!؟?؛:"«»()]/g,'').trim()).filter(Boolean))];
+  readingState.mistakeWords = unique;
+  if(unique.length){
     wwCard.style.display='block';
-    document.getElementById('wrongWordsList').innerHTML = [...new Set(readingState.wrongWords)].map(w=>`<span class="pill-small" style="background:var(--incorrect-bg); color:var(--incorrect);">${w}</span>`).join('');
+    // Selectable: the parent decides which words are worth drilling
+    document.getElementById('wrongWordsList').innerHTML = unique.map((w,i)=>`
+      <label style="display:inline-flex; align-items:center; gap:6px; background:var(--incorrect-bg); color:var(--incorrect); border-radius:999px; padding:6px 12px; font-size:13px; cursor:pointer;">
+        <input type="checkbox" class="mistake-cb" value="${escapeHtml(w)}" checked style="width:16px; height:16px; accent-color:var(--incorrect);">
+        ${escapeHtml(w)}
+      </label>`).join('');
   } else { wwCard.style.display='none'; }
 
   db.sessions.push({
     type:'reading', date:new Date().toISOString(), accuracy, wpm,
-    correct:readingState.wordsCorrect, total:readingState.wordsTotal,
+    correct:wordsCorrect, total:wordsTotal,
     profileId: db.activeProfileId
   });
   saveDB();
@@ -1184,12 +1278,12 @@ function saveCustomText(){
   if(!title || !body){ toast('لطفاً عنوان و متن را وارد کن'); return; }
   if(editingTextId){
     const t = db.customTexts.find(x=>x.id===editingTextId);
-    if(t){ t.title = title; t.level = level; t.body = body; }
+    if(t){ t.title = title; t.level = level; t.body = normalizePersianText(body); }
     saveDB();
     cancelEdit();
     toast('تغییرات ذخیره شد');
   } else {
-    db.customTexts.push({id:'custom_'+Date.now(), level, title, body});
+    db.customTexts.push({id:'custom_'+Date.now(), level, title, body: normalizePersianText(body)});
     saveDB();
     document.getElementById('customTitle').value='';
     document.getElementById('customText').value='';
@@ -1215,11 +1309,10 @@ function startDictation(){
   renderDictWord();
 }
 function dictationFromMistakes(){
-  // Strip trailing punctuation so the child is asked to spell the word, not the sentence break
-  const words = [...new Set(readingState.wrongWords)]
-    .map(w => w.replace(/[.،,!؟?؛:"«»()]/g,'').trim())
-    .filter(Boolean);
-  if(!words.length){ toast('کلمه‌ای برای تمرین وجود ندارد'); return; }
+  // Only the words the parent left checked
+  const checked = Array.from(document.querySelectorAll('.mistake-cb:checked')).map(cb=>cb.value.trim()).filter(Boolean);
+  const words = [...new Set(checked)];
+  if(!words.length){ toast('حداقل یک کلمه را انتخاب کن'); return; }
   dictState = { words, index:0, correct:0 };
   go('dictation');
   renderDictWord();
