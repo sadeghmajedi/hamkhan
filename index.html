@@ -455,7 +455,7 @@
    هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
    Single-file offline-capable PWA. Data stored in localStorage.
    ========================================================= */
-const APP_VERSION = "0.6.1";
+const APP_VERSION = "0.6.2";
 const DB_KEY = "hamkhan_db_v1";
 const VERSION_URL = "version.json";
 
@@ -1578,7 +1578,10 @@ updateProfileChip();
 updateConnectivityUI();
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
+    navigator.serviceWorker.register('sw.js', {updateViaCache: 'none'}).catch(()=>{});
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    window.location.reload();
   });
 }
 </script>
