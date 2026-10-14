@@ -455,7 +455,7 @@
    هم‌خوان — Reading & Dictation Tutor (Persian, MVP)
    Single-file offline-capable PWA. Data stored in localStorage.
    ========================================================= */
-const APP_VERSION = "0.6.2";
+const APP_VERSION = "0.6.3";
 const DB_KEY = "hamkhan_db_v1";
 const VERSION_URL = "version.json";
 
@@ -632,7 +632,7 @@ function normalizeWord(w){
   let s = (w||'')
     .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g,'')       // diacritics
     .replace(/[\u200C\u200D\u200E\u200F]/g,'')               // ZWNJ etc: "می‌کند" === "میکند"
-    .replace(/ي/g,'ی').replace(/ك/g,'ک')
+    .replace(/[يى]/g,'ی').replace(/ك/g,'ک')                  // ى (alef maksura) from the iOS Arabic keyboard too
     .replace(/ة/g,'ه').replace(/ۀ/g,'ه')
     .replace(/[أإآٱ]/g,'ا')
     .replace(/[.،,!؟?؛:"«»()\[\]\-–—…]/g,'')
@@ -669,7 +669,7 @@ function levenshtein(a,b){
    scores. Normalizing the wording at the source fixes it for both display and scoring. */
 function normalizePersianText(text){
   return String(text || '')
-    .replace(/ي/g,'ی')
+    .replace(/[يى]/g,'ی')                // ي and ى (alef maksura) from the iOS Arabic keyboard
     .replace(/ك/g,'ک')
     .replace(/ة/g,'ه').replace(/ۀ/g,'هٔ')
     .replace(/[أإٱ]/g,'ا')
@@ -1299,7 +1299,9 @@ function startDictation(){
   const customRaw = document.getElementById('dictCustomWords').value.trim();
   let words;
   if(customRaw){
-    words = customRaw.split(/[,،]/).map(w=>w.trim()).filter(Boolean);
+    // Same normalization as custom reading texts, so words typed on the iOS Arabic
+    // keyboard (ي/ك) reach the speech engine and the answer check in Persian form
+    words = customRaw.split(/[,،]/).map(w=>normalizePersianText(w).trim()).filter(Boolean);
   } else {
     words = DEFAULT_DICT_WORDS[level];
   }
@@ -1311,7 +1313,10 @@ function startDictation(){
 function dictationFromMistakes(){
   // Only the words the parent left checked
   const checked = Array.from(document.querySelectorAll('.mistake-cb:checked')).map(cb=>cb.value.trim()).filter(Boolean);
-  const words = [...new Set(checked)];
+  // De-duplicate by normalized form, so the same word in Arabic and Persian spelling counts once
+  const seenWords = new Map();
+  checked.forEach(w => { const k = normalizeWord(w); if(k && !seenWords.has(k)) seenWords.set(k, w); });
+  const words = [...seenWords.values()];
   if(!words.length){ toast('حداقل یک کلمه را انتخاب کن'); return; }
   dictState = { words, index:0, correct:0 };
   go('dictation');
